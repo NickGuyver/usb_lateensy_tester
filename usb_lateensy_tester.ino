@@ -1,28 +1,8 @@
 #include "USBHost_t36.h"
 
-// raw hid skew testing
-// beagle press   - 45
-// teensy press   - 175
-// beagle release - 170
-// teensy releaes - 300
-// mouse skew     - 130
-
-// serial skew testing
-// beagle press   - 140
-// teensy press   - 270
-// beagle release - 265
-// teensy releaes - 395
-// mouse          - 130
-
-// keyboard skew testing
-// beagle press   - 143
-// teensy press   - 273
-// beagle release - 268
-// teensy releaes - 398
-// mouse          - 130
-
 #define ledPin 13
 #define testPin 6
+#define interruptPin 7
 
 //#define DEBUG_OUTPUT
 
@@ -69,7 +49,7 @@ bool hid_driver_active[CNT_HIDDEVICES] = { false, false, false, false };
 uint32_t buttons_cur = 0;
 uint32_t buttons;
 
-elapsedMicros eu_timer;
+volatile elapsedMicros eu_timer;
 elapsedMillis em_timer;
 unsigned long random_ms = random(400, 1000);
 uint8_t pin_flip = 0;
@@ -120,7 +100,9 @@ void setup() {
 
   pinMode(ledPin, OUTPUT);
   pinMode(testPin, OUTPUT);
+  pinMode(interruptPin, INPUT);
   randomSeed(analogRead(A0)*analogRead(A1));
+  attachInterrupt(digitalPinToInterrupt(interruptPin), StartTimer, CHANGE);
 
   UpdateActiveDeviceInfo();
   
@@ -191,6 +173,11 @@ void loop() {
       MainMenu();
     }
   }
+}
+
+
+void StartTimer() {
+  eu_timer = 0;
 }
 
 
@@ -318,7 +305,6 @@ void RunTest() {
 
     random_ms = random(400, 1000);
     em_timer = 0;
-    eu_timer = 0;
     
     digitalWriteFast(testPin, pin_flip);
   }
