@@ -6,9 +6,10 @@
 
 //#define DEBUG_OUTPUT
 
-#define MOUSE_SKEW 130
 #define JOYSTICK_SKEW 997
-#define NUM_TESTS 100
+#define MOUSE_SKEW 129
+#define KB_SKEW 0
+
 
 //=============================================================================
 // USB Host Objects
@@ -89,9 +90,7 @@ void setup() {
   }
 
   myusb.begin();
-  keyboard1.attachRawPress(OnRawPress);
-  keyboard1.attachRawRelease(OnRawRelease);
-
+  
   // The below forceBootProtocol will force which ever
   // next keyboard that attaches to this device to be in boot protocol
   // Only try this if you run into keyboard with issues.  If this is a combined
@@ -101,11 +100,13 @@ void setup() {
   pinMode(ledPin, OUTPUT);
   pinMode(testPin, OUTPUT);
   pinMode(interruptPin, INPUT);
+  
   randomSeed(analogRead(A0)*analogRead(A1));
+  keyboard1.attachRawPress(OnRawPress);
+  keyboard1.attachRawRelease(OnRawRelease);
   attachInterrupt(digitalPinToInterrupt(interruptPin), StartTimer, CHANGE);
 
   UpdateActiveDeviceInfo();
-  
   MainMenu();
 }
 
@@ -165,7 +166,7 @@ void loop() {
       }
     }
     if (test_count) {
-    test_count = 0;
+      test_count = 0;
       Serial.println("done\n");
 
       PrintResults();
@@ -330,16 +331,16 @@ void UpdateActiveDeviceInfo() {
       if (driver_active[i]) {
 #ifdef DEBUG_OUTPUT
         Serial.printf("*** Device %s - disconnected ***\n", driver_names[i]);
+        current_device = "None";
 #endif
         driver_active[i] = false;
-        current_device = "None";
       }
       else {
 #ifdef DEBUG_OUTPUT
         Serial.printf("*** Device %s %x:%x - connected ***\n", driver_names[i], drivers[i]->idVendor(), drivers[i]->idProduct());
+        current_device = driver_names[i];
 #endif
         driver_active[i] = true;
-        current_device = driver_names[i];
       }
     }
   }
@@ -422,27 +423,10 @@ void ProcessMouseData(unsigned long timer) {
 //=============================================================================
 void ProcessKeyboardData(unsigned long timer) {
   if (buttons != buttons_cur) {
-    if (timer > 100000) {
-#ifdef DEBUG_OUTPUT
-      Serial.println("BAD RESULT");
-      Serial.println(timer);
-#endif
-    }
-    else {
-#ifdef DEBUG_OUTPUT
-        PrintDebug(timer);
-#endif
-      if (buttons) {
-        press_count ++;
-        press_total += timer;
-        press_avg = press_total / press_count;
-      }
-      else {
-        release_count ++;
-        release_total += timer;
-        release_avg = release_total / release_count;
-      }
-    }
+    timer -= KB_SKEW;
+
+    DataCollector(timer);
+
 #ifdef DEBUG_OUTPUT
     Serial.print("Keyboard: buttons = ");
     Serial.print(buttons, HEX);
@@ -456,16 +440,22 @@ void ProcessKeyboardData(unsigned long timer) {
 
 
 void OnRawPress(uint8_t keycode) {
-  //Serial.println("KB PRESS");
+#ifdef DEBUG_OUTPUT
+  Serial.println("KB PRESS");
+#endif
   end_timer = eu_timer;
   buttons = keycode;
+  
   ProcessKeyboardData(end_timer);
 }
 
 
 void OnRawRelease(uint8_t keycode) {
-  //Serial.println("KB RELEASE");
+#ifdef DEBUG_OUTPUT
+  Serial.println("KB RELEASE");
+#endif
   end_timer = eu_timer;
   buttons = 0;
+  
   ProcessKeyboardData(end_timer);
 }
