@@ -91,29 +91,28 @@ void setup() {
 
   myusb.begin();
   
-  // The below forceBootProtocol will force which ever
-  // next keyboard that attaches to this device to be in boot protocol
-  // Only try this if you run into keyboard with issues.  If this is a combined
-  // device like wireless mouse and keyboard this can cause mouse problems.
+  // Force next keyboard that attaches into boot protocol mode
   //keyboard1.forceBootProtocol();
 
   pinMode(ledPin, OUTPUT);
   pinMode(testPin, OUTPUT);
   pinMode(interruptPin, INPUT);
   
+  // Used for randomizing the tests
   randomSeed(analogRead(A0)*analogRead(A1));
+
+  // Setup the various interrupt handlers
   keyboard1.attachRawPress(OnRawPress);
   keyboard1.attachRawRelease(OnRawRelease);
   attachInterrupt(digitalPinToInterrupt(interruptPin), StartTimer, CHANGE);
 
+  // Collect current device info and diplay the menu
   UpdateActiveDeviceInfo();
   MainMenu();
 }
 
 
-//=============================================================================
-// Loop
-//=============================================================================
+// Main loop
 void loop() {
   myusb.Task();
   char choice = 0;
@@ -177,11 +176,13 @@ void loop() {
 }
 
 
+// Reset the microsecond timer, triggered from interrupt
 void StartTimer() {
   eu_timer = 0;
 }
 
 
+// Display the main serial menu
 void MainMenu() {
   Serial.println("\n===================");
   Serial.println("USB LaTeensy Tester");
@@ -192,6 +193,8 @@ void MainMenu() {
   Serial.println("\t4 - Run 1000 tests");
 }
 
+
+// Show the results of the last run test
 void PrintResults() {
   Serial.print("press_count: ");
   Serial.print(press_count);
@@ -222,6 +225,8 @@ void PrintResults() {
   Serial.println("");
 }
 
+
+// Show debug output for each iteration of the test
 #ifdef DEBUG_OUTPUT
 void PrintDebug(unsigned long timer) {
   Serial.print("eu_timer: ");
@@ -256,6 +261,7 @@ void PrintDebug(unsigned long timer) {
 #endif
 
 
+// Collect and store the information from the current test
 void DataCollector(unsigned long timer) {
   if (timer > 100000) {
 #ifdef DEBUG_OUTPUT
@@ -281,6 +287,7 @@ void DataCollector(unsigned long timer) {
 }
 
 
+// Execute the test by triggering the testPin, and then waiting for data on joystick or mouse
 void RunTest() {
   if (em_timer >= random_ms && !trigger_set) {
     pin_flip = !pin_flip;
@@ -321,9 +328,7 @@ void RunTest() {
 }
 
 
-//=============================================================================
-// UpdateActiveDeviceInfo
-//=============================================================================
+// Gather the current device information
 void UpdateActiveDeviceInfo() {
   // First see if any high level devices
   for (uint8_t i = 0; i < CNT_DEVICES; i++) {
@@ -366,9 +371,7 @@ void UpdateActiveDeviceInfo() {
 }
 
 
-//=============================================================================
-// ProcessJoystickData
-//=============================================================================
+// Validate, adjust timing skew, send to collector, and then clear everything for the next test
 void ProcessJoystickData(unsigned long timer) {
   buttons = joystick.getButtons();
 
@@ -392,9 +395,7 @@ void ProcessJoystickData(unsigned long timer) {
 }
 
 
-//=============================================================================
-// ProcessMouseData
-//=============================================================================
+// Validate, adjust timing skew, send to collector, and then clear everything for the next test
 void ProcessMouseData(unsigned long timer) {
   buttons = mouse.getButtons();
 
@@ -418,9 +419,7 @@ void ProcessMouseData(unsigned long timer) {
 }
 
 
-//=============================================================================
-// ProcessKeyboardData
-//=============================================================================
+// Validate, adjust timing skew, send to collector, and then clear everything for the next test
 void ProcessKeyboardData(unsigned long timer) {
   if (buttons != buttons_cur) {
     timer -= KB_SKEW;
@@ -439,6 +438,7 @@ void ProcessKeyboardData(unsigned long timer) {
 }
 
 
+// Called whenever a new KB key is pressed
 void OnRawPress(uint8_t keycode) {
 #ifdef DEBUG_OUTPUT
   Serial.println("KB PRESS");
@@ -450,6 +450,7 @@ void OnRawPress(uint8_t keycode) {
 }
 
 
+// Called whenever a new KB key is released
 void OnRawRelease(uint8_t keycode) {
 #ifdef DEBUG_OUTPUT
   Serial.println("KB RELEASE");
