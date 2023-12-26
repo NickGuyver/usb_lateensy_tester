@@ -56,6 +56,9 @@ unsigned long random_ms = random(400, 1000);
 uint8_t pin_flip = 0;
 uint8_t trigger_set = 0;
 const char *current_device = "None";
+const uint8_t *current_manuf = "None";
+const uint8_t *current_prod = "None";
+const uint8_t *current_serial = "None";
 uint32_t press_count = 0;
 uint32_t press_avg = 0;
 uint32_t press_total = 0;
@@ -107,6 +110,8 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(interruptPin), StartTimer, CHANGE);
 
   // Collect current device info and diplay the menu
+  myusb.Task();
+  delay(500);
   UpdateActiveDeviceInfo();
   MainMenu();
 }
@@ -127,7 +132,7 @@ void loop() {
 
   UpdateActiveDeviceInfo();
 
-  while (Serial.available()) {    
+  while (Serial.available()) {
     choice = Serial.read();
 
     switch (choice) {
@@ -165,6 +170,7 @@ void loop() {
       }
     }
     if (test_count) {
+      choice = 0;
       test_count = 0;
       Serial.println("done\n");
 
@@ -187,6 +193,12 @@ void MainMenu() {
   Serial.println("\n===================");
   Serial.println("USB LaTeensy Tester");
   Serial.println("===================");
+  Serial.println("Device Information");
+  Serial.printf("|Type: %s\n", current_device);
+  Serial.printf("|Manufacturer: %s\n", current_manuf);
+  Serial.printf("|Product: %s\n", current_prod);
+  Serial.printf("|Serial: %s\n", current_serial);
+  Serial.println("");
   Serial.println("\t1 - Run 10 tests");
   Serial.println("\t2 - Run 50 tests");
   Serial.println("\t3 - Run 100 tests");
@@ -343,8 +355,14 @@ void UpdateActiveDeviceInfo() {
       else {
 #ifdef DEBUG_OUTPUT
         Serial.printf("*** Device %s %x:%x - connected ***\n", driver_names[i], drivers[i]->idVendor(), drivers[i]->idProduct());
-        current_device = driver_names[i];
+        Serial.printf("Manufacturer: %s\n", drivers[i]->manufacturer());
+        Serial.printf("Product: %s\n", drivers[i]->product());
+        Serial.printf("Serial: %s\n", drivers[i]->serialNumber());
 #endif
+        current_device = driver_names[i];
+        current_manuf = drivers[i]->manufacturer();
+        current_prod = drivers[i]->product();
+        current_serial = drivers[i]->serialNumber();
         driver_active[i] = true;
       }
     }
@@ -362,9 +380,16 @@ void UpdateActiveDeviceInfo() {
       else {       
 #ifdef DEBUG_OUTPUT
         Serial.printf("*** HID Device %s %x:%x - connected ***\n", hid_driver_names[i], hiddrivers[i]->idVendor(), hiddrivers[i]->idProduct());
+        Serial.printf("Manufacturer: %s\n", hiddrivers[i]->manufacturer());
+        Serial.printf("Product: %s\n", hiddrivers[i]->product());
+        Serial.printf("Serial: %s\n", hiddrivers[i]->serialNumber());
 #endif
-        hid_driver_active[i] = true;
         current_device = hid_driver_names[i];
+        current_device = driver_names[i];
+        current_manuf = hiddrivers[i]->manufacturer();
+        current_prod = hiddrivers[i]->product();
+        current_serial = hiddrivers[i]->serialNumber();
+        hid_driver_active[i] = true;
       }
     }
   }
