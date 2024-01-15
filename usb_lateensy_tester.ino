@@ -42,32 +42,42 @@ const char *hid_driver_names[CNT_HIDDEVICES] = { "KB1", "joystick", "mouse", "Ra
 bool hid_driver_active[CNT_HIDDEVICES] = { false, false, false, false };
 
 //=============================================================================
-// Other state variables.
+// Other variables.
 //=============================================================================
 
-// Save away values for button
+volatile elapsedMicros eu_timer;
+elapsedMillis em_timer;
+unsigned long end_timer = 0;
+unsigned long random_ms = random(400, 1000);
 
 uint32_t buttons_cur = 0;
 uint32_t buttons;
 
-volatile elapsedMicros eu_timer;
-elapsedMillis em_timer;
-unsigned long random_ms = random(400, 1000);
+uint32_t test_count = 0;
+uint32_t skip_count = 0;
+
 uint8_t pin_flip = 0;
 uint8_t trigger_set = 0;
-const char *current_device = "None";
-const uint8_t *current_manuf = "None";
-const uint8_t *current_prod = "None";
-const uint8_t *current_serial = "None";
-uint32_t press_count = 0;
-uint32_t press_avg = 0;
-uint32_t press_total = 0;
-uint32_t release_count = 0;
-uint32_t release_avg = 0;
-uint32_t release_total = 0;
-uint32_t skip_count = 0;
-uint32_t test_count = 0;
-unsigned long end_timer = 0;
+
+
+struct DeviceInfo {
+  const char* name;
+  const uint8_t* manuf;
+  const uint8_t* prod;
+  const uint8_t* serial;
+};
+
+DeviceInfo currentDevice;
+
+struct LatencyTest {
+  uint32_t test_count = 0;
+  uint32_t press_count = 0;
+  uint32_t press_total = 0;
+  uint32_t release_count = 0;
+  uint32_t release_total = 0;
+};
+
+LatencyTest currentTest;
 
 
 void yield()
@@ -120,15 +130,11 @@ void setup() {
 // Main loop
 void loop() {
   myusb.Task();
+  
+  currentTest = {};
   char choice = 0;
   int current_progress = 0;
   int last_progress = 0;
-  press_count = 0;
-  press_avg = 0;
-  press_total = 0;
-  release_count = 0;
-  release_avg = 0;
-  release_total = 0;
 
   UpdateActiveDeviceInfo();
 
@@ -137,41 +143,41 @@ void loop() {
 
     switch (choice) {
       case '1':
-          test_count = 10;
+          currentTest.test_count = 10;
           break;
       case '2':
-          test_count = 50;
+          currentTest.test_count = 50;
           break;
       case '3':
-          test_count = 100;
+          currentTest.test_count = 100;
           break;
       case '4':
-          test_count = 1000;
+          currentTest.test_count = 1000;
           break;
     }
 
-    if (test_count) {
+    if (currentTest.test_count) {
       Serial.print("\nrunning ");
-      Serial.print(test_count);
+      Serial.print(currentTest.test_count);
       Serial.println(" tests...\n");
     }
 
-    while (press_count < test_count) {
+    while (currentTest.press_count < currentTest.test_count) {
       RunTest();
 
-      current_progress = (press_count * 100) / test_count;
+      current_progress = (currentTest.press_count * 100) / currentTest.test_count;
       if (current_progress % 10 == 0 && last_progress != current_progress) {
         Serial.print("\t");
-        Serial.print((press_count * 100) / test_count);
+        Serial.print((currentTest.press_count * 100) / currentTest.test_count);
         Serial.println("% complete");
         Serial.send_now();
 
         last_progress = current_progress;
       }
     }
-    if (test_count) {
+    if (currentTest.test_count) {
       choice = 0;
-      test_count = 0;
+      currentTest.test_count = 0;
       Serial.println("done\n");
 
       PrintResults();
@@ -194,10 +200,10 @@ void MainMenu() {
   Serial.println("USB LaTeensy Tester");
   Serial.println("===================");
   Serial.println("Device Information");
-  Serial.printf("|Type: %s\n", current_device);
-  Serial.printf("|Manufacturer: %s\n", current_manuf);
-  Serial.printf("|Product: %s\n", current_prod);
-  Serial.printf("|Serial: %s\n", current_serial);
+  Serial.printf("|Type: %s\n", currentDevice.name);
+  Serial.printf("|Manufacturer: %s\n", currentDevice.manuf);
+  Serial.printf("|Product: %s\n", currentDevice.prod);
+  Serial.printf("|Serial: %s\n", currentDevice.serial);
   Serial.println("");
   Serial.println("\t1 - Run 10 tests");
   Serial.println("\t2 - Run 50 tests");
@@ -209,31 +215,32 @@ void MainMenu() {
 // Show the results of the last run test
 void PrintResults() {
   Serial.print("press_count: ");
-  Serial.print(press_count);
+  Serial.print(currentTest.press_count);
   Serial.println("");
   Serial.print("press_total: ");
-  Serial.print(press_total);
+  Serial.print(currentTest.press_total);
   Serial.println("");
   Serial.print("press_avg: ");
-  Serial.print(press_avg);
+  Serial.print(currentTest.press_total / currentTest.press_count);
   Serial.println("");
   Serial.print("release_count: ");
-  Serial.print(release_count);
+  Serial.print(currentTest.release_count);
   Serial.println("");
   Serial.print("release_total: ");
-  Serial.print(release_total);
+  Serial.print(currentTest.release_total);
   Serial.println("");
   Serial.print("release_avg: ");
-  Serial.print(release_avg);
+  Serial.print(currentTest.release_total / currentTest.release_count);
   Serial.println("");
   Serial.print("trigger_count: ");
-  Serial.print(press_count + release_count);
+  Serial.print(currentTest.press_count + currentTest.release_count);
   Serial.println("");
   Serial.print("trigger_total: ");
-  Serial.print(press_total + release_total);
+  Serial.print(currentTest.press_total + currentTest.release_total);
   Serial.println("");
   Serial.print("trigger_avg: ");
-  Serial.print((press_avg + release_avg) / 2);
+  Serial.print(((currentTest.press_total / currentTest.press_count) + 
+                (currentTest.release_total / currentTest.release_count)) / 2);
   Serial.println("");
 }
 
@@ -248,25 +255,25 @@ void PrintDebug(unsigned long timer) {
   if (buttons) {
     Serial.println("PRESS");
     Serial.print("press_count: ");
-    Serial.print(press_count);
+    Serial.print(currentTest.press_count);
     Serial.println("");
     Serial.print("press_total: ");
-    Serial.print(press_total);
+    Serial.print(currentTest.press_total);
     Serial.println("");
     Serial.print("press_avg: ");
-    Serial.print(press_avg);
+    Serial.print(currentTest.press_total / currentTest.press_count);
     Serial.println("");
   }
   else {
     Serial.println("RELEASE");
     Serial.print("release_count: ");
-    Serial.print(release_count);
+    Serial.print(currentTest.release_count);
     Serial.println("");
     Serial.print("release_total: ");
-    Serial.print(release_total);
+    Serial.print(currentTest.release_total);
     Serial.println("");
     Serial.print("release_avg: ");
-    Serial.print(release_avg);
+    Serial.print(currentTest.release_total / currentTest.release_count);
     Serial.println("");
   }
 }
@@ -286,14 +293,12 @@ void DataCollector(unsigned long timer) {
       PrintDebug(timer);
 #endif
     if (buttons) {
-      press_count ++;
-      press_total += timer;
-      press_avg = press_total / press_count;
+      currentTest.press_count ++;
+      currentTest.press_total += timer;
     }
     else {
-      release_count ++;
-      release_total += timer;
-      release_avg = release_total / release_count;
+      currentTest.release_count ++;
+      currentTest.release_total += timer;
     }
   }
 }
@@ -313,7 +318,7 @@ void RunTest() {
     Serial.print(pin_flip);
     Serial.println("");
     Serial.print("current_device: ");
-    Serial.print(current_device);
+    Serial.print(currentDevice.name);
     Serial.println("");
     Serial.print("skip_count: ");
     Serial.print(skip_count);
@@ -348,8 +353,8 @@ void UpdateActiveDeviceInfo() {
       if (driver_active[i]) {
 #ifdef DEBUG_OUTPUT
         Serial.printf("*** Device %s - disconnected ***\n", driver_names[i]);
-        current_device = "None";
 #endif
+        currentDevice.name = "None";
         driver_active[i] = false;
       }
       else {
@@ -359,10 +364,10 @@ void UpdateActiveDeviceInfo() {
         Serial.printf("Product: %s\n", drivers[i]->product());
         Serial.printf("Serial: %s\n", drivers[i]->serialNumber());
 #endif
-        current_device = driver_names[i];
-        current_manuf = drivers[i]->manufacturer();
-        current_prod = drivers[i]->product();
-        current_serial = drivers[i]->serialNumber();
+        currentDevice.name = driver_names[i];
+        currentDevice.manuf = drivers[i]->manufacturer();
+        currentDevice.prod = drivers[i]->product();
+        currentDevice.serial = drivers[i]->serialNumber();
         driver_active[i] = true;
       }
     }
@@ -375,7 +380,7 @@ void UpdateActiveDeviceInfo() {
         Serial.printf("*** HID Device %s - disconnected ***\n", hid_driver_names[i]);
 #endif
         hid_driver_active[i] = false;
-        current_device = "None";
+        currentDevice.name = "None";
       }
       else {       
 #ifdef DEBUG_OUTPUT
@@ -384,11 +389,11 @@ void UpdateActiveDeviceInfo() {
         Serial.printf("Product: %s\n", hiddrivers[i]->product());
         Serial.printf("Serial: %s\n", hiddrivers[i]->serialNumber());
 #endif
-        current_device = hid_driver_names[i];
-        current_device = driver_names[i];
-        current_manuf = hiddrivers[i]->manufacturer();
-        current_prod = hiddrivers[i]->product();
-        current_serial = hiddrivers[i]->serialNumber();
+        currentDevice.name = hid_driver_names[i];
+        currentDevice.name = driver_names[i];
+        currentDevice.manuf = hiddrivers[i]->manufacturer();
+        currentDevice.prod = hiddrivers[i]->product();
+        currentDevice.serial = hiddrivers[i]->serialNumber();
         hid_driver_active[i] = true;
       }
     }
