@@ -44,8 +44,25 @@ bool hid_driver_active[CNT_HIDDEVICES] = { false, false, false, false };
 //=============================================================================
 // Other variables.
 //=============================================================================
+struct DeviceInfo {
+  const char* name;
+  const uint8_t* manuf;
+  const uint8_t* prod;
+  const uint8_t* serial;
+};
 
-volatile elapsedMicros eu_timer;
+struct LatencyTest {
+  uint32_t test_count = 0;
+  uint32_t press_count = 0;
+  uint32_t press_total = 0;
+  uint32_t release_count = 0;
+  uint32_t release_total = 0;
+};
+
+DeviceInfo currentDevice;
+LatencyTest currentTest;
+
+elapsedMicros eu_timer;
 elapsedMillis em_timer;
 unsigned long end_timer = 0;
 unsigned long random_ms = random(400, 1000);
@@ -60,29 +77,15 @@ uint8_t pin_flip = 0;
 uint8_t trigger_set = 0;
 
 
-struct DeviceInfo {
-  const char* name;
-  const uint8_t* manuf;
-  const uint8_t* prod;
-  const uint8_t* serial;
-};
-
-DeviceInfo currentDevice;
-
-struct LatencyTest {
-  uint32_t test_count = 0;
-  uint32_t press_count = 0;
-  uint32_t press_total = 0;
-  uint32_t release_count = 0;
-  uint32_t release_total = 0;
-};
-
-LatencyTest currentTest;
-
-
 void yield()
 {
   digitalToggleFast(0);
+}
+
+
+// Reset the microsecond timer, triggered from interrupt
+void StartTimer() {
+  eu_timer = 0;
 }
 
 
@@ -185,12 +188,6 @@ void loop() {
       MainMenu();
     }
   }
-}
-
-
-// Reset the microsecond timer, triggered from interrupt
-void StartTimer() {
-  eu_timer = 0;
 }
 
 
