@@ -1,14 +1,21 @@
 #include "USBHost_t36.h"
 
+#define DEBUG_OUTPUT
+
 #define ledPin 13
+
+// Testing pins, connected together and to target
 #define testPin 6
-#define interruptPin 7
+#define interruptPin 9
 
-//#define DEBUG_OUTPUT
-
+// Adjust for skew as compared to protocol analyzer
 #define JOYSTICK_SKEW 997
 #define MOUSE_SKEW 129
 #define KB_SKEW 0
+
+// Range for random testing
+#define RANDOM_FLOOR 80
+#define RANDOM_CEILING 1000
 
 
 //=============================================================================
@@ -27,14 +34,14 @@ MouseController mouse(myusb);
 JoystickController joystick(myusb);
 RawHIDController rawhid2(myusb);
 
-// Lets only include in the lists The most top level type devices we wish to show information for.
+// Only include the most top level type devices to show information for
 USBDriver *drivers[] = { &joystick, &hid1, &hid2, &hid3, &hid4, &hid5, &hid6, &hid7 };
 
 #define CNT_DEVICES (sizeof(drivers) / sizeof(drivers[0]))
 const char *driver_names[CNT_DEVICES] = { "Joystick(device)", "HID1", "HID2", "HID3", "HID4", "HID5", "HID6", "HID7" };
 bool driver_active[CNT_DEVICES] = { false, false, false, false };
 
-// Lets also look at HID Input devices
+// Include HID input devices
 USBHIDInput *hiddrivers[] = { &keyboard1, &joystick, &mouse, &rawhid2 };
 #define CNT_HIDDEVICES (sizeof(hiddrivers) / sizeof(hiddrivers[0]))
 const char *hid_driver_names[CNT_HIDDEVICES] = { "KB1", "joystick", "mouse", "RawHid2" };
@@ -42,7 +49,7 @@ const char *hid_driver_names[CNT_HIDDEVICES] = { "KB1", "joystick", "mouse", "Ra
 bool hid_driver_active[CNT_HIDDEVICES] = { false, false, false, false };
 
 //=============================================================================
-// Other variables.
+// Other variables
 //=============================================================================
 struct DeviceInfo {
   const char* name;
@@ -65,7 +72,7 @@ LatencyTest currentTest;
 elapsedMicros eu_timer;
 elapsedMillis em_timer;
 unsigned long end_timer = 0;
-unsigned long random_ms = random(400, 1000);
+unsigned long random_ms = random(RANDOM_FLOOR, RANDOM_CEILING);
 
 uint32_t buttons_cur = 0;
 uint32_t buttons;
@@ -325,7 +332,7 @@ void RunTest() {
     trigger_set = 1;
     digitalWriteFast(ledPin, !pin_flip);
 
-    random_ms = random(400, 1000);
+    random_ms = random(RANDOM_FLOOR, RANDOM_CEILING);
     em_timer = 0;
     
     digitalWriteFast(testPin, pin_flip);
