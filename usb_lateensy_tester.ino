@@ -77,7 +77,6 @@ unsigned long random_ms = 0;
 uint32_t buttons_cur = 0;
 uint32_t buttons;
 
-uint32_t test_count = 0;
 uint32_t skip_count = 0;
 
 uint8_t pin_flip = 0;
