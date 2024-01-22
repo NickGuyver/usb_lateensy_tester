@@ -56,6 +56,8 @@ struct DeviceInfo {
   const uint8_t* manuf = nullptr;
   const uint8_t* prod = nullptr;
   const uint8_t* serial = nullptr;
+  uint16_t vid = 0;
+  uint16_t pid = 0;
 };
 
 struct LatencyTest {
@@ -204,6 +206,7 @@ void MainMenu() {
   Serial.println("USB LaTeensy Tester");
   Serial.println("===================");
   Serial.println("Device Information");
+  Serial.printf("|VID:PID: %u:%u\n", currentDevice.vid, currentDevice.pid);
   Serial.printf("|Type: %s\n", currentDevice.name);
   Serial.printf("|Manufacturer: %s\n", currentDevice.manuf);
   Serial.printf("|Product: %s\n", currentDevice.prod);
@@ -372,6 +375,8 @@ void UpdateActiveDeviceInfo() {
         currentDevice.manuf = drivers[i]->manufacturer();
         currentDevice.prod = drivers[i]->product();
         currentDevice.serial = drivers[i]->serialNumber();
+        currentDevice.vid = drivers[i]->idVendor();
+        currentDevice.pid = drivers[i]->idProduct();
         driver_active[i] = true;
       }
     }
@@ -398,6 +403,8 @@ void UpdateActiveDeviceInfo() {
         currentDevice.manuf = hiddrivers[i]->manufacturer();
         currentDevice.prod = hiddrivers[i]->product();
         currentDevice.serial = hiddrivers[i]->serialNumber();
+        currentDevice.vid = hiddrivers[i]->idVendor();
+        currentDevice.pid = hiddrivers[i]->idProduct();
         hid_driver_active[i] = true;
       }
     }
