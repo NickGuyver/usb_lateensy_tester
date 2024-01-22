@@ -52,10 +52,10 @@ bool hid_driver_active[CNT_HIDDEVICES] = { false, false, false, false };
 // Other variables
 //=============================================================================
 struct DeviceInfo {
-  const char* name;
-  const uint8_t* manuf;
-  const uint8_t* prod;
-  const uint8_t* serial;
+  const char* name = nullptr;
+  const uint8_t* manuf = nullptr;
+  const uint8_t* prod = nullptr;
+  const uint8_t* serial = nullptr;
 };
 
 struct LatencyTest {
@@ -69,10 +69,10 @@ struct LatencyTest {
 DeviceInfo currentDevice;
 LatencyTest currentTest;
 
-elapsedMicros eu_timer;
-elapsedMillis em_timer;
+elapsedMicros eu_timer = 0;
+elapsedMillis em_timer = 0;
 unsigned long end_timer = 0;
-unsigned long random_ms = random(RANDOM_FLOOR, RANDOM_CEILING);
+unsigned long random_ms = 0;
 
 uint32_t buttons_cur = 0;
 uint32_t buttons;
@@ -123,6 +123,7 @@ void setup() {
   
   // Used for randomizing the tests
   randomSeed(analogRead(A0)*analogRead(A1));
+  random_ms = random(RANDOM_FLOOR, RANDOM_CEILING);
 
   // Setup the various interrupt handlers
   keyboard1.attachRawPress(OnRawPress);
@@ -358,7 +359,7 @@ void UpdateActiveDeviceInfo() {
 #ifdef DEBUG_OUTPUT
         Serial.printf("*** Device %s - disconnected ***\n", driver_names[i]);
 #endif
-        currentDevice.name = "None";
+        currentDevice = {};
         driver_active[i] = false;
       }
       else {
@@ -384,7 +385,7 @@ void UpdateActiveDeviceInfo() {
         Serial.printf("*** HID Device %s - disconnected ***\n", hid_driver_names[i]);
 #endif
         hid_driver_active[i] = false;
-        currentDevice.name = "None";
+        currentDevice = {};
       }
       else {       
 #ifdef DEBUG_OUTPUT
