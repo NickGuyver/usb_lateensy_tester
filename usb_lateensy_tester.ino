@@ -1,4 +1,5 @@
 #include "USBHost_t36.h"
+#include <vector>
 
 #define DEBUG_OUTPUT
 
@@ -66,6 +67,8 @@ struct LatencyTest {
   uint32_t press_total = 0;
   uint32_t release_count = 0;
   uint32_t release_total = 0;
+  std::vector<long unsigned int> presses = {};
+  std::vector<long unsigned int>  releases = {};
 };
 
 DeviceInfo currentDevice;
@@ -147,6 +150,9 @@ void loop() {
   char choice = 0;
   int current_progress = 0;
   int last_progress = 0;
+  
+  currentTest.presses.clear();
+  currentTest.releases.clear();
 
   UpdateActiveDeviceInfo();
 
@@ -188,13 +194,14 @@ void loop() {
       }
     }
     if (currentTest.test_count) {
-      choice = 0;
-      currentTest.test_count = 0;
       Serial.println("done\n");
 
       PrintResults();
       Serial.println();
       MainMenu();
+
+      choice = 0;
+      currentTest.test_count = 0;
     }
   }
 }
@@ -206,7 +213,8 @@ void MainMenu() {
   Serial.println("USB LaTeensy Tester");
   Serial.println("===================");
   Serial.println("Device Information");
-  Serial.printf("|VID:PID: %u:%u\n", currentDevice.vid, currentDevice.pid);
+  Serial.printf("|VID: %04u\n", currentDevice.vid, currentDevice.pid);
+  Serial.printf("|PID: %04u\n", currentDevice.pid);
   Serial.printf("|Type: %s\n", currentDevice.name);
   Serial.printf("|Manufacturer: %s\n", currentDevice.manuf);
   Serial.printf("|Product: %s\n", currentDevice.prod);
@@ -249,6 +257,22 @@ void PrintResults() {
   Serial.print(((currentTest.press_total / currentTest.press_count) + 
                 (currentTest.release_total / currentTest.release_count)) / 2);
   Serial.println("");
+#ifdef DEBUG_OUTPUT
+  Serial.println("");
+  Serial.println("Press Timings:");
+  for (uint32_t i = 0; i < currentTest.test_count; i++) {
+    Serial.print(currentTest.presses[i]);
+    Serial.println("");
+  }
+
+  Serial.println("");
+
+  Serial.println("Release Timings:");
+  for (uint32_t i = 0; i < currentTest.test_count; i++) {
+    Serial.print(currentTest.releases[i]);
+    Serial.println("");
+  }
+#endif
 }
 
 
@@ -300,10 +324,12 @@ void DataCollector(unsigned long timer) {
       PrintDebug(timer);
 #endif
     if (buttons) {
+      currentTest.presses.push_back(timer);
       currentTest.press_count ++;
       currentTest.press_total += timer;
     }
     else {
+      currentTest.releases.push_back(timer);
       currentTest.release_count ++;
       currentTest.release_total += timer;
     }
