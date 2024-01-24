@@ -20,6 +20,7 @@
 
 // Handle stuck testing
 #define MAX_TIME 5000
+#define MAX_ATTEMPTS 5
 
 
 //=============================================================================
@@ -90,6 +91,7 @@ uint32_t skip_count = 0;
 
 uint8_t pin_flip = 0;
 uint8_t trigger_set = 0;
+uint8_t test_failures = 0;
 
 
 void yield()
@@ -186,6 +188,16 @@ void loop() {
     while (currentTest.press_count < currentTest.test_count) {
       RunTest();
 
+      if (test_failures >= MAX_ATTEMPTS) {
+        Serial.println("Too many failed attempts.");
+        Serial.println();
+        MainMenu();
+
+        choice = 0;
+        test_failures = 0;
+        currentTest.test_count = 0;
+      }
+
       current_progress = (currentTest.press_count * 100) / currentTest.test_count;
       if (current_progress % 10 == 0 && last_progress != current_progress) {
         Serial.print("\t");
@@ -198,7 +210,6 @@ void loop() {
     }
     if (currentTest.test_count) {
       Serial.println("done\n");
-
       PrintResults();
       Serial.println();
       MainMenu();
@@ -359,6 +370,9 @@ void RunTest() {
     Serial.print("skip_count: ");
     Serial.print(skip_count);
     Serial.println("");
+    Serial.print("test_failures: ");
+    Serial.print(test_failures);
+    Serial.println("");
     Serial.send_now();
 #endif
     trigger_set = 1;
@@ -378,7 +392,15 @@ void RunTest() {
     ProcessMouseData(end_timer);
   }
   else if (em_timer > MAX_TIME) {
+#ifdef DEBUG_OUTPUT
+    Serial.println("TIMER FAIL");
+#endif
+    test_failures++;
     ClearTest();
+
+    if (test_failures >= MAX_ATTEMPTS) {
+      return;
+    }
   }
 
   skip_count ++;
