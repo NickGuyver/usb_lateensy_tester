@@ -216,7 +216,7 @@ void MainMenu() {
   Serial.println("USB LaTeensy Tester");
   Serial.println("===================");
   Serial.println("Device Information");
-  Serial.printf("|VID: %04u\n", currentDevice.vid, currentDevice.pid);
+  Serial.printf("|VID: %04u\n", currentDevice.vid);
   Serial.printf("|PID: %04u\n", currentDevice.pid);
   Serial.printf("|Type: %s\n", currentDevice.name);
   Serial.printf("|Manufacturer: %s\n", currentDevice.manuf);
