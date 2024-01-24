@@ -166,17 +166,21 @@ void loop() {
 
     switch (choice) {
       case '1':
-          currentTest.test_count = 10;
-          break;
+        currentTest.test_count = 10;
+        break;
       case '2':
-          currentTest.test_count = 50;
-          break;
+        currentTest.test_count = 50;
+        break;
       case '3':
-          currentTest.test_count = 100;
-          break;
+        currentTest.test_count = 100;
+        break;
       case '4':
-          currentTest.test_count = 1000;
-          break;
+        currentTest.test_count = 1000;
+        break;
+      case '5':
+        pin_flip = !pin_flip;
+        MainMenu();
+        break;
     }
 
     if (currentTest.test_count) {
@@ -226,6 +230,9 @@ void MainMenu() {
   Serial.println("\n===================");
   Serial.println("USB LaTeensy Tester");
   Serial.println("===================");
+  Serial.println("Testing Information");
+  Serial.printf("|Testing Pin: %u\n", testPin);
+  Serial.printf("|Pin Status: %u\n", pin_flip);
   Serial.println("Device Information");
   Serial.printf("|VID: %04u\n", currentDevice.vid);
   Serial.printf("|PID: %04u\n", currentDevice.pid);
@@ -238,6 +245,9 @@ void MainMenu() {
   Serial.println("\t2 - Run 50 tests");
   Serial.println("\t3 - Run 100 tests");
   Serial.println("\t4 - Run 1000 tests");
+  Serial.println("\t5 - Flip Testing Pin");
+
+  digitalWriteFast(ledPin, pin_flip);
 }
 
 
