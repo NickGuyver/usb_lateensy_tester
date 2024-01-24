@@ -378,12 +378,18 @@ void RunTest() {
     ProcessMouseData(end_timer);
   }
   else if (em_timer > MAX_TIME) {
-    buttons_cur = buttons;
-    skip_count = 0;
-    trigger_set = 0;
+    ClearTest();
   }
 
   skip_count ++;
+}
+
+
+// Clear testing variables
+void ClearTest() {
+  buttons_cur = buttons;
+  skip_count = 0;
+  trigger_set = 0;
 }
 
 
@@ -466,9 +472,7 @@ void ProcessJoystickData(unsigned long timer) {
     Serial.println();
 #endif
 
-    buttons_cur = buttons;
-    skip_count = 0;
-    trigger_set = 0;
+    ClearTest();
 
     joystick.joystickDataClear();
   }
@@ -490,9 +494,7 @@ void ProcessMouseData(unsigned long timer) {
     Serial.println();
 #endif
 
-    buttons_cur = buttons;
-    skip_count = 0;
-    trigger_set = 0;
+    ClearTest();
 
     mouse.mouseDataClear();
   }
@@ -511,9 +513,8 @@ void ProcessKeyboardData(unsigned long timer) {
     Serial.print(buttons, HEX);
     Serial.println();
 #endif
-    buttons_cur = buttons;
-    skip_count = 0;
-    trigger_set = 0;
+    
+    ClearTest();
   }
 }
 
