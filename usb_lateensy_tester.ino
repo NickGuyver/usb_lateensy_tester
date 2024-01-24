@@ -1,7 +1,7 @@
 #include "USBHost_t36.h"
 #include <vector>
 
-#define DEBUG_OUTPUT
+//#define DEBUG_OUTPUT
 
 #define ledPin 13
 
@@ -17,6 +17,9 @@
 // Range for random testing
 #define RANDOM_FLOOR 80
 #define RANDOM_CEILING 1000
+
+// Handle stuck testing
+#define MAX_TIME 5000
 
 
 //=============================================================================
@@ -54,6 +57,7 @@ bool hid_driver_active[CNT_HIDDEVICES] = { false, false, false, false };
 //=============================================================================
 struct DeviceInfo {
   const char* name = nullptr;
+  const char* prev_name = "None";
   const uint8_t* manuf = nullptr;
   const uint8_t* prod = nullptr;
   const uint8_t* serial = nullptr;
@@ -138,7 +142,6 @@ void setup() {
   myusb.Task();
   delay(500);
   UpdateActiveDeviceInfo();
-  MainMenu();
 }
 
 
@@ -374,6 +377,12 @@ void RunTest() {
     end_timer = eu_timer;
     ProcessMouseData(end_timer);
   }
+  else if (em_timer > MAX_TIME) {
+    buttons_cur = buttons;
+    skip_count = 0;
+    trigger_set = 0;
+  }
+
   skip_count ++;
 }
 
@@ -414,8 +423,8 @@ void UpdateActiveDeviceInfo() {
 #ifdef DEBUG_OUTPUT
         Serial.printf("*** HID Device %s - disconnected ***\n", hid_driver_names[i]);
 #endif
-        hid_driver_active[i] = false;
         currentDevice = {};
+        hid_driver_active[i] = false;
       }
       else {       
 #ifdef DEBUG_OUTPUT
@@ -425,7 +434,6 @@ void UpdateActiveDeviceInfo() {
         Serial.printf("Serial: %s\n", hiddrivers[i]->serialNumber());
 #endif
         currentDevice.name = hid_driver_names[i];
-        currentDevice.name = driver_names[i];
         currentDevice.manuf = hiddrivers[i]->manufacturer();
         currentDevice.prod = hiddrivers[i]->product();
         currentDevice.serial = hiddrivers[i]->serialNumber();
@@ -434,6 +442,11 @@ void UpdateActiveDeviceInfo() {
         hid_driver_active[i] = true;
       }
     }
+  }
+
+  if (currentDevice.prev_name != currentDevice.name) {
+    MainMenu();
+    currentDevice.prev_name = currentDevice.name;
   }
 }
 
