@@ -83,11 +83,11 @@ unsigned long random_ms = 0;
 
 uint32_t buttons_cur = 0;
 uint32_t buttons;
-
 uint32_t skip_count = 0;
 
-uint8_t pin_flip = 0;
-uint8_t trigger_set = 0;
+bool pin_flip = 0;
+bool trigger_set = 0;
+
 uint8_t test_failures = 0;
 
 
