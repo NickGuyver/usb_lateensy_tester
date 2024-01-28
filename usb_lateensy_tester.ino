@@ -107,7 +107,7 @@ void StartTimer() {
 // Setup
 //=============================================================================
 void setup() {
-  while (!Serial && millis() < 3000)
+  while (!Serial && (millis() < 3000))
     ;  // wait for Arduino Serial Monitor
 
   if (CrashReport) {
@@ -149,7 +149,6 @@ void loop() {
   myusb.Task();
   
   currentTest = {};
-  char choice = 0;
   int current_progress = 0;
   int last_progress = 0;
   
@@ -159,9 +158,7 @@ void loop() {
   UpdateActiveDeviceInfo();
 
   while (Serial.available()) {
-    choice = Serial.read();
-
-    switch (choice) {
+    switch (Serial.read()) {
       case '1':
         currentTest.test_count = 10;
         break;
@@ -194,7 +191,6 @@ void loop() {
         Serial.println();
         MainMenu();
 
-        choice = 0;
         test_failures = 0;
         currentTest.test_count = 0;
       }
@@ -202,7 +198,7 @@ void loop() {
       current_progress = (currentTest.press_count * 100) / currentTest.test_count;
       if (current_progress % 10 == 0 && last_progress != current_progress) {
         Serial.print("\t");
-        Serial.print((currentTest.press_count * 100) / currentTest.test_count);
+        Serial.print(current_progress);
         Serial.println("% complete");
         Serial.send_now();
 
@@ -215,7 +211,6 @@ void loop() {
       Serial.println();
       MainMenu();
 
-      choice = 0;
       currentTest.test_count = 0;
     }
   }
