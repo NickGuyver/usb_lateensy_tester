@@ -1,5 +1,4 @@
 #include <array>
-#include <chrono>
 #include <cstdint>
 #include <vector>
 
@@ -151,9 +150,6 @@ void loop() {
   currentTest = {};
   int current_progress = 0;
   int last_progress = 0;
-  
-  currentTest.presses.clear();
-  currentTest.releases.clear();
 
   UpdateActiveDeviceInfo();
 
