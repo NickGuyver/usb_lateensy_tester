@@ -1,33 +1,40 @@
-#include "USBHost_t36.h"
+#include <array>
+#include <chrono>
+#include <cstdint>
 #include <vector>
+
+#include "USBHost_t36.h"
 
 //#define DEBUG_OUTPUT
 
-#define ledPin 13
+constexpr int ledPin = 13;
 
 // Testing pins, connected together and to target
-#define testPin 6
-#define interruptPin 9
+constexpr int testPin = 6;
+constexpr int interruptPin = 9;
 
 // Adjust for skew as compared to protocol analyzer
-#define JOYSTICK_SKEW 997
-#define MOUSE_SKEW 129
-#define KB_SKEW 0
+constexpr int JOYSTICK_SKEW = 997;
+constexpr int MOUSE_SKEW = 129;
+constexpr int KB_SKEW = 0;
 
 // Range for random testing
-#define RANDOM_FLOOR 80
-#define RANDOM_CEILING 1000
+constexpr int RANDOM_FLOOR = 80;
+constexpr int RANDOM_CEILING = 1000;
 
 // Handle stuck testing
-#define MAX_TIME 5000
-#define MAX_ATTEMPTS 5
+constexpr int MAX_TIME = 5000;
+constexpr int MAX_ATTEMPTS = 5;
 
 
 //=============================================================================
 // USB Host Objects
 //=============================================================================
 USBHost myusb;
-KeyboardController keyboard1(myusb);
+JoystickController joystick(myusb);
+KeyboardController keyboard(myusb);
+MouseController mouse(myusb);
+RawHIDController rawhid(myusb);
 USBHIDParser hid1(myusb);
 USBHIDParser hid2(myusb);
 USBHIDParser hid3(myusb);
@@ -35,27 +42,17 @@ USBHIDParser hid4(myusb);
 USBHIDParser hid5(myusb);
 USBHIDParser hid6(myusb);
 USBHIDParser hid7(myusb);
-MouseController mouse(myusb);
-JoystickController joystick(myusb);
-RawHIDController rawhid2(myusb);
 
 // Only include the most top level type devices to show information for
-USBDriver *drivers[] = { &joystick, &hid1, &hid2, &hid3, &hid4, &hid5, &hid6, &hid7 };
-
-#define CNT_DEVICES (sizeof(drivers) / sizeof(drivers[0]))
-const char *driver_names[CNT_DEVICES] = { "Joystick(device)", "HID1", "HID2", "HID3", "HID4", "HID5", "HID6", "HID7" };
-bool driver_active[CNT_DEVICES] = { false, false, false, false };
+std::array<USBDriver*, 8> drivers = {&joystick, &hid1, &hid2, &hid3, &hid4, &hid5, &hid6, &hid7};
+std::array<const char*, drivers.size()> driver_names = {"Joystick (Device), HID1, HID2, HID3, HID4, HID5, HID6, HID7"};
+std::array<bool, drivers.size()> driver_active = {false, false, false, false, false, false, false, false};
 
 // Include HID input devices
-USBHIDInput *hiddrivers[] = { &keyboard1, &joystick, &mouse, &rawhid2 };
-#define CNT_HIDDEVICES (sizeof(hiddrivers) / sizeof(hiddrivers[0]))
-const char *hid_driver_names[CNT_HIDDEVICES] = { "KB1", "joystick", "mouse", "RawHid2" };
+std::array<USBHIDInput*, 4> hid_drivers = {&joystick, &keyboard, &mouse, &rawhid};
+std::array<const char*, hid_drivers.size()> hid_driver_names = {"Joystick", "Keyboard", "Mouse", "RawHID"};
+std::array<bool, hid_drivers.size()> hid_driver_active = {false, false, false, false};
 
-bool hid_driver_active[CNT_HIDDEVICES] = { false, false, false, false };
-
-//=============================================================================
-// Other variables
-//=============================================================================
 struct DeviceInfo {
   const char* name = nullptr;
   const char* prev_name = "None";
@@ -125,7 +122,7 @@ void setup() {
   myusb.begin();
   
   // Force next keyboard that attaches into boot protocol mode
-  //keyboard1.forceBootProtocol();
+  //keyboard.forceBootProtocol();
 
   pinMode(ledPin, OUTPUT);
   pinMode(testPin, OUTPUT);
@@ -136,8 +133,8 @@ void setup() {
   random_ms = random(RANDOM_FLOOR, RANDOM_CEILING);
 
   // Setup the various interrupt handlers
-  keyboard1.attachRawPress(OnRawPress);
-  keyboard1.attachRawRelease(OnRawRelease);
+  keyboard.attachRawPress(OnRawPress);
+  keyboard.attachRawRelease(OnRawRelease);
   attachInterrupt(digitalPinToInterrupt(interruptPin), StartTimer, CHANGE);
 
   // Collect current device info and diplay the menu
@@ -428,7 +425,7 @@ void ClearTest() {
 // Gather the current device information
 void UpdateActiveDeviceInfo() {
   // First see if any high level devices
-  for (uint8_t i = 0; i < CNT_DEVICES; i++) {
+  for (uint8_t i = 0; i < drivers.size(); i++) {
     if (*drivers[i] != driver_active[i]) {
       if (driver_active[i]) {
 #ifdef DEBUG_OUTPUT
@@ -455,8 +452,8 @@ void UpdateActiveDeviceInfo() {
     }
   }
   // Then Hid Devices
-  for (uint8_t i = 0; i < CNT_HIDDEVICES; i++) {
-    if (*hiddrivers[i] != hid_driver_active[i]) {
+  for (uint8_t i = 0; i < hid_drivers.size(); i++) {
+    if (*hid_drivers[i] != hid_driver_active[i]) {
       if (hid_driver_active[i]) {
 #ifdef DEBUG_OUTPUT
         Serial.printf("*** HID Device %s - disconnected ***\n", hid_driver_names[i]);
@@ -466,17 +463,17 @@ void UpdateActiveDeviceInfo() {
       }
       else {       
 #ifdef DEBUG_OUTPUT
-        Serial.printf("*** HID Device %s %x:%x - connected ***\n", hid_driver_names[i], hiddrivers[i]->idVendor(), hiddrivers[i]->idProduct());
-        Serial.printf("Manufacturer: %s\n", hiddrivers[i]->manufacturer());
-        Serial.printf("Product: %s\n", hiddrivers[i]->product());
-        Serial.printf("Serial: %s\n", hiddrivers[i]->serialNumber());
+        Serial.printf("*** HID Device %s %x:%x - connected ***\n", hid_driver_names[i], hid_drivers[i]->idVendor(), hid_drivers[i]->idProduct());
+        Serial.printf("Manufacturer: %s\n", hid_drivers[i]->manufacturer());
+        Serial.printf("Product: %s\n", hid_drivers[i]->product());
+        Serial.printf("Serial: %s\n", hid_drivers[i]->serialNumber());
 #endif
         currentDevice.name = hid_driver_names[i];
-        currentDevice.manuf = hiddrivers[i]->manufacturer();
-        currentDevice.prod = hiddrivers[i]->product();
-        currentDevice.serial = hiddrivers[i]->serialNumber();
-        currentDevice.vid = hiddrivers[i]->idVendor();
-        currentDevice.pid = hiddrivers[i]->idProduct();
+        currentDevice.manuf = hid_drivers[i]->manufacturer();
+        currentDevice.prod = hid_drivers[i]->product();
+        currentDevice.serial = hid_drivers[i]->serialNumber();
+        currentDevice.vid = hid_drivers[i]->idVendor();
+        currentDevice.pid = hid_drivers[i]->idProduct();
         hid_driver_active[i] = true;
       }
     }
