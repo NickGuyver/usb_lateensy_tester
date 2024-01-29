@@ -213,7 +213,7 @@ void loop() {
       RunTest();
 
       if (test_fail_count >= max_fail_count) {
-        Serial.println("Too many failed attempts.");
+        Serial.println("\nToo many failed attempts.");
         Serial.println();
         MainMenu();
 
@@ -381,7 +381,7 @@ void DataCollector(unsigned long timer) {
 
 // Execute the test by triggering the test_pin, and then waiting for data on joystick or mouse
 void RunTest() {
-  if (timer_ms >= random_ms.count() && !trigger_state) {
+  if ((timer_ms >= random_ms.count()) && !trigger_state) {
     pin_state = !pin_state;
 #ifdef DEBUG_OUTPUT
     Serial.println("");
