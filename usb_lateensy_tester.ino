@@ -77,7 +77,6 @@ LatencyTest currentTest;
 
 elapsedMicros eu_timer = 0;
 elapsedMillis em_timer = 0;
-unsigned long end_timer = 0;
 unsigned long random_ms = 0;
 
 uint32_t buttons_cur = 0;
@@ -382,12 +381,10 @@ void RunTest() {
     digitalWriteFast(testPin, pin_flip);
   }
   else if (joystick.available()) {
-    end_timer = eu_timer;
-    ProcessJoystickData(end_timer);
+    ProcessJoystickData(eu_timer);
   }
   else if (mouse.available()) {
-    end_timer = eu_timer;
-    ProcessMouseData(end_timer);
+    ProcessMouseData(eu_timer);
   }
   else if (em_timer > MAX_TIME) {
 #ifdef DEBUG_OUTPUT
@@ -544,10 +541,9 @@ void OnRawPress(uint8_t keycode) {
 #ifdef DEBUG_OUTPUT
   Serial.println("KB PRESS");
 #endif
-  end_timer = eu_timer;
   buttons = keycode;
   
-  ProcessKeyboardData(end_timer);
+  ProcessKeyboardData(eu_timer);
 }
 
 
@@ -556,8 +552,7 @@ void OnRawRelease(uint8_t keycode) {
 #ifdef DEBUG_OUTPUT
   Serial.println("KB RELEASE");
 #endif
-  end_timer = eu_timer;
   buttons = 0;
   
-  ProcessKeyboardData(end_timer);
+  ProcessKeyboardData(eu_timer);
 }
