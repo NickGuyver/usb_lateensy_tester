@@ -1,4 +1,5 @@
 #include <array>
+#include <chrono>
 #include <cstdint>
 #include <vector>
 
@@ -6,25 +7,60 @@
 
 //#define DEBUG_OUTPUT
 
-constexpr int ledPin = 13;
+constexpr int led_pin = 13;
 
 // Testing pins, connected together and to target
-constexpr int testPin = 6;
-constexpr int interruptPin = 9;
+constexpr int test_pin = 6;
+constexpr int interrupt_pin = 9;
 
 // Adjust for skew as compared to protocol analyzer
-constexpr int JOYSTICK_SKEW = 997;
-constexpr int MOUSE_SKEW = 129;
-constexpr int KB_SKEW = 0;
+constexpr int joystick_skew_us = 997;
+constexpr int mouse_skew_us = 129;
+constexpr int keyboard_skew_us = 0; // Testing data needed
 
-// Range for random testing
-constexpr int RANDOM_FLOOR = 80;
-constexpr int RANDOM_CEILING = 1000;
+// Randomize testing
+unsigned long random_ms = 0;
+constexpr int random_floor_ms = 80;
+constexpr int random_ceiling_ms = 1000;
 
 // Handle stuck testing
-constexpr int MAX_TIME = 5000;
-constexpr int MAX_ATTEMPTS = 5;
+uint8_t test_fail_count = 0;
+constexpr int max_fail_time_ms = 5000;
+constexpr int max_fail_count = 5;
 
+// Timers used for measurements
+elapsedMicros timer_us = 0;
+elapsedMillis timer_ms = 0;
+
+uint32_t prev_buttons = 0;
+uint32_t buttons;
+
+bool pin_state = 0;
+bool trigger_state = 0;
+uint32_t skip_count = 0;
+
+struct DeviceInfo {
+  const char* name = nullptr;
+  const char* prev_name = "None";
+  const uint8_t* manufacturer = nullptr;
+  const uint8_t* product = nullptr;
+  const uint8_t* serial = nullptr;
+  uint16_t vendor_id = 0;
+  uint16_t product_id = 0;
+};
+
+struct LatencyTest {
+  uint32_t test_count = 0;
+  uint32_t press_count = 0;
+  uint32_t press_total = 0;
+  uint32_t release_count = 0;
+  uint32_t release_total = 0;
+  std::vector<long unsigned int> presses = {};
+  std::vector<long unsigned int>  releases = {};
+};
+
+DeviceInfo current_device;
+LatencyTest current_test;
 
 //=============================================================================
 // USB Host Objects
@@ -42,7 +78,7 @@ USBHIDParser hid5(myusb);
 USBHIDParser hid6(myusb);
 USBHIDParser hid7(myusb);
 
-// Only include the most top level type devices to show information for
+// Include the most top level type devices to show information for
 std::array<USBDriver*, 8> drivers = {&joystick, &hid1, &hid2, &hid3, &hid4, &hid5, &hid6, &hid7};
 std::array<const char*, drivers.size()> driver_names = {"Joystick (Device), HID1, HID2, HID3, HID4, HID5, HID6, HID7"};
 std::array<bool, drivers.size()> driver_active = {false, false, false, false, false, false, false, false};
@@ -52,42 +88,6 @@ std::array<USBHIDInput*, 4> hid_drivers = {&joystick, &keyboard, &mouse, &rawhid
 std::array<const char*, hid_drivers.size()> hid_driver_names = {"Joystick", "Keyboard", "Mouse", "RawHID"};
 std::array<bool, hid_drivers.size()> hid_driver_active = {false, false, false, false};
 
-struct DeviceInfo {
-  const char* name = nullptr;
-  const char* prev_name = "None";
-  const uint8_t* manuf = nullptr;
-  const uint8_t* prod = nullptr;
-  const uint8_t* serial = nullptr;
-  uint16_t vid = 0;
-  uint16_t pid = 0;
-};
-
-struct LatencyTest {
-  uint32_t test_count = 0;
-  uint32_t press_count = 0;
-  uint32_t press_total = 0;
-  uint32_t release_count = 0;
-  uint32_t release_total = 0;
-  std::vector<long unsigned int> presses = {};
-  std::vector<long unsigned int>  releases = {};
-};
-
-DeviceInfo currentDevice;
-LatencyTest currentTest;
-
-elapsedMicros eu_timer = 0;
-elapsedMillis em_timer = 0;
-unsigned long random_ms = 0;
-
-uint32_t buttons_cur = 0;
-uint32_t buttons;
-uint32_t skip_count = 0;
-
-bool pin_flip = 0;
-bool trigger_set = 0;
-
-uint8_t test_failures = 0;
-
 
 void yield()
 {
@@ -95,9 +95,32 @@ void yield()
 }
 
 
-// Reset the microsecond timer, triggered from interrupt
+//=============================================================================
+// Interrupt Functions
+//=============================================================================
+// Triggered from interrupt_pin
 void StartTimer() {
-  eu_timer = 0;
+  timer_us = 0;
+}
+
+// Triggered from keyboard press
+void OnRawPress(uint8_t keycode) {
+#ifdef DEBUG_OUTPUT
+  Serial.println("KB PRESS");
+#endif
+  buttons = keycode;
+  
+  ProcessKeyboardData(timer_us);
+}
+
+// Triggered from keyboard release
+void OnRawRelease(uint8_t keycode) {
+#ifdef DEBUG_OUTPUT
+  Serial.println("KB RELEASE");
+#endif
+  buttons = 0;
+  
+  ProcessKeyboardData(timer_us);
 }
 
 
@@ -122,18 +145,18 @@ void setup() {
   // Force next keyboard that attaches into boot protocol mode
   //keyboard.forceBootProtocol();
 
-  pinMode(ledPin, OUTPUT);
-  pinMode(testPin, OUTPUT);
-  pinMode(interruptPin, INPUT);
+  pinMode(led_pin, OUTPUT);
+  pinMode(test_pin, OUTPUT);
+  pinMode(interrupt_pin, INPUT);
   
   // Used for randomizing the tests
   randomSeed(analogRead(A0)*analogRead(A1));
-  random_ms = random(RANDOM_FLOOR, RANDOM_CEILING);
+  random_ms = random(random_floor_ms, random_ceiling_ms);
 
   // Setup the various interrupt handlers
   keyboard.attachRawPress(OnRawPress);
   keyboard.attachRawRelease(OnRawRelease);
-  attachInterrupt(digitalPinToInterrupt(interruptPin), StartTimer, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(interrupt_pin), StartTimer, CHANGE);
 
   // Collect current device info and diplay the menu
   myusb.Task();
@@ -142,11 +165,13 @@ void setup() {
 }
 
 
-// Main loop
+//=============================================================================
+// Main Loop
+//=============================================================================
 void loop() {
   myusb.Task();
   
-  currentTest = {};
+  current_test = {};
   int current_progress = 0;
   int last_progress = 0;
 
@@ -155,42 +180,42 @@ void loop() {
   while (Serial.available()) {
     switch (Serial.read()) {
       case '1':
-        currentTest.test_count = 10;
+        current_test.test_count = 10;
         break;
       case '2':
-        currentTest.test_count = 50;
+        current_test.test_count = 50;
         break;
       case '3':
-        currentTest.test_count = 100;
+        current_test.test_count = 100;
         break;
       case '4':
-        currentTest.test_count = 1000;
+        current_test.test_count = 1000;
         break;
       case '5':
-        pin_flip = !pin_flip;
+        pin_state = !pin_state;
         MainMenu();
         break;
     }
 
-    if (currentTest.test_count) {
-      Serial.print("\nrunning ");
-      Serial.print(currentTest.test_count);
+    if (current_test.test_count) {
+      Serial.print("\nRunning ");
+      Serial.print(current_test.test_count);
       Serial.println(" tests...\n");
     }
 
-    while (currentTest.press_count < currentTest.test_count) {
+    while (current_test.press_count < current_test.test_count) {
       RunTest();
 
-      if (test_failures >= MAX_ATTEMPTS) {
+      if (test_fail_count >= max_fail_count) {
         Serial.println("Too many failed attempts.");
         Serial.println();
         MainMenu();
 
-        test_failures = 0;
-        currentTest.test_count = 0;
+        test_fail_count = 0;
+        current_test.test_count = 0;
       }
 
-      current_progress = (currentTest.press_count * 100) / currentTest.test_count;
+      current_progress = (current_test.press_count * 100) / current_test.test_count;
       if (current_progress % 10 == 0 && last_progress != current_progress) {
         Serial.print("\t");
         Serial.print(current_progress);
@@ -200,13 +225,13 @@ void loop() {
         last_progress = current_progress;
       }
     }
-    if (currentTest.test_count) {
+    if (current_test.test_count) {
       Serial.println("done\n");
       PrintResults();
       Serial.println();
       MainMenu();
 
-      currentTest.test_count = 0;
+      current_test.test_count = 0;
     }
   }
 }
@@ -218,15 +243,15 @@ void MainMenu() {
   Serial.println("USB LaTeensy Tester");
   Serial.println("===================");
   Serial.println("Testing Information");
-  Serial.printf("|Testing Pin: %u\n", testPin);
-  Serial.printf("|Pin Status: %u\n", pin_flip);
+  Serial.printf("|Testing Pin: %u\n", test_pin);
+  Serial.printf("|Pin Status: %u\n", pin_state);
   Serial.println("Device Information");
-  Serial.printf("|VID: %04u\n", currentDevice.vid);
-  Serial.printf("|PID: %04u\n", currentDevice.pid);
-  Serial.printf("|Type: %s\n", currentDevice.name);
-  Serial.printf("|Manufacturer: %s\n", currentDevice.manuf);
-  Serial.printf("|Product: %s\n", currentDevice.prod);
-  Serial.printf("|Serial: %s\n", currentDevice.serial);
+  Serial.printf("|VID: %04u\n", current_device.vendor_id);
+  Serial.printf("|PID: %04u\n", current_device.product_id);
+  Serial.printf("|Type: %s\n", current_device.name);
+  Serial.printf("|Manufacturer: %s\n", current_device.manufacturer);
+  Serial.printf("|Product: %s\n", current_device.product);
+  Serial.printf("|Serial: %s\n", current_device.serial);
   Serial.println("");
   Serial.println("\t1 - Run 10 tests");
   Serial.println("\t2 - Run 50 tests");
@@ -234,53 +259,53 @@ void MainMenu() {
   Serial.println("\t4 - Run 1000 tests");
   Serial.println("\t5 - Flip Testing Pin");
 
-  digitalWriteFast(ledPin, pin_flip);
+  digitalWriteFast(led_pin, pin_state);
 }
 
 
 // Show the results of the last run test
 void PrintResults() {
   Serial.print("press_count: ");
-  Serial.print(currentTest.press_count);
+  Serial.print(current_test.press_count);
   Serial.println("");
   Serial.print("press_total: ");
-  Serial.print(currentTest.press_total);
+  Serial.print(current_test.press_total);
   Serial.println("");
   Serial.print("press_avg: ");
-  Serial.print(currentTest.press_total / currentTest.press_count);
+  Serial.print(current_test.press_total / current_test.press_count);
   Serial.println("");
   Serial.print("release_count: ");
-  Serial.print(currentTest.release_count);
+  Serial.print(current_test.release_count);
   Serial.println("");
   Serial.print("release_total: ");
-  Serial.print(currentTest.release_total);
+  Serial.print(current_test.release_total);
   Serial.println("");
   Serial.print("release_avg: ");
-  Serial.print(currentTest.release_total / currentTest.release_count);
+  Serial.print(current_test.release_total / current_test.release_count);
   Serial.println("");
   Serial.print("trigger_count: ");
-  Serial.print(currentTest.press_count + currentTest.release_count);
+  Serial.print(current_test.press_count + current_test.release_count);
   Serial.println("");
   Serial.print("trigger_total: ");
-  Serial.print(currentTest.press_total + currentTest.release_total);
+  Serial.print(current_test.press_total + current_test.release_total);
   Serial.println("");
   Serial.print("trigger_avg: ");
-  Serial.print(((currentTest.press_total / currentTest.press_count) + 
-                (currentTest.release_total / currentTest.release_count)) / 2);
+  Serial.print(((current_test.press_total / current_test.press_count) + 
+                (current_test.release_total / current_test.release_count)) / 2);
   Serial.println("");
 #ifdef DEBUG_OUTPUT
   Serial.println("");
   Serial.println("Press Timings:");
-  for (uint32_t i = 0; i < currentTest.test_count; i++) {
-    Serial.print(currentTest.presses[i]);
+  for (uint32_t i = 0; i < current_test.test_count; i++) {
+    Serial.print(current_test.presses[i]);
     Serial.println("");
   }
 
   Serial.println("");
 
   Serial.println("Release Timings:");
-  for (uint32_t i = 0; i < currentTest.test_count; i++) {
-    Serial.print(currentTest.releases[i]);
+  for (uint32_t i = 0; i < current_test.test_count; i++) {
+    Serial.print(current_test.releases[i]);
     Serial.println("");
   }
 #endif
@@ -290,32 +315,32 @@ void PrintResults() {
 // Show debug output for each iteration of the test
 #ifdef DEBUG_OUTPUT
 void PrintDebug(unsigned long timer) {
-  Serial.print("eu_timer: ");
+  Serial.print("timer_us: ");
   Serial.print(timer);
   Serial.println("");
   
   if (buttons) {
     Serial.println("PRESS");
     Serial.print("press_count: ");
-    Serial.print(currentTest.press_count);
+    Serial.print(current_test.press_count);
     Serial.println("");
     Serial.print("press_total: ");
-    Serial.print(currentTest.press_total);
+    Serial.print(current_test.press_total);
     Serial.println("");
     Serial.print("press_avg: ");
-    Serial.print(currentTest.press_total / currentTest.press_count);
+    Serial.print(current_test.press_total / current_test.press_count);
     Serial.println("");
   }
   else {
     Serial.println("RELEASE");
     Serial.print("release_count: ");
-    Serial.print(currentTest.release_count);
+    Serial.print(current_test.release_count);
     Serial.println("");
     Serial.print("release_total: ");
-    Serial.print(currentTest.release_total);
+    Serial.print(current_test.release_total);
     Serial.println("");
     Serial.print("release_avg: ");
-    Serial.print(currentTest.release_total / currentTest.release_count);
+    Serial.print(current_test.release_total / current_test.release_count);
     Serial.println("");
   }
 }
@@ -335,65 +360,65 @@ void DataCollector(unsigned long timer) {
       PrintDebug(timer);
 #endif
     if (buttons) {
-      currentTest.presses.push_back(timer);
-      currentTest.press_count ++;
-      currentTest.press_total += timer;
+      current_test.presses.push_back(timer);
+      current_test.press_count ++;
+      current_test.press_total += timer;
     }
     else {
-      currentTest.releases.push_back(timer);
-      currentTest.release_count ++;
-      currentTest.release_total += timer;
+      current_test.releases.push_back(timer);
+      current_test.release_count ++;
+      current_test.release_total += timer;
     }
   }
 }
 
 
-// Execute the test by triggering the testPin, and then waiting for data on joystick or mouse
+// Execute the test by triggering the test_pin, and then waiting for data on joystick or mouse
 void RunTest() {
-  if (em_timer >= random_ms && !trigger_set) {
-    pin_flip = !pin_flip;
+  if (timer_ms >= random_ms && !trigger_state) {
+    pin_state = !pin_state;
 #ifdef DEBUG_OUTPUT
     Serial.println("");
     Serial.println("");
-    Serial.print("em_timer: ");
-    Serial.print(em_timer);
+    Serial.print("timer_ms: ");
+    Serial.print(timer_ms);
     Serial.println("");
-    Serial.print("pin_flip: ");
-    Serial.print(pin_flip);
+    Serial.print("pin_state: ");
+    Serial.print(pin_state);
     Serial.println("");
     Serial.print("current_device: ");
-    Serial.print(currentDevice.name);
+    Serial.print(current_device.name);
     Serial.println("");
     Serial.print("skip_count: ");
     Serial.print(skip_count);
     Serial.println("");
-    Serial.print("test_failures: ");
-    Serial.print(test_failures);
+    Serial.print("test_fail_count: ");
+    Serial.print(test_fail_count);
     Serial.println("");
     Serial.send_now();
 #endif
-    trigger_set = 1;
-    digitalWriteFast(ledPin, !pin_flip);
+    trigger_state = 1;
+    digitalWriteFast(led_pin, !pin_state);
 
-    random_ms = random(RANDOM_FLOOR, RANDOM_CEILING);
-    em_timer = 0;
+    random_ms = random(random_floor_ms, random_ceiling_ms);
+    timer_ms = 0;
     
-    digitalWriteFast(testPin, pin_flip);
+    digitalWriteFast(test_pin, pin_state);
   }
   else if (joystick.available()) {
-    ProcessJoystickData(eu_timer);
+    ProcessJoystickData(timer_us);
   }
   else if (mouse.available()) {
-    ProcessMouseData(eu_timer);
+    ProcessMouseData(timer_us);
   }
-  else if (em_timer > MAX_TIME) {
+  else if (timer_ms > max_fail_time_ms) {
 #ifdef DEBUG_OUTPUT
     Serial.println("TIMER FAIL");
 #endif
-    test_failures++;
+    test_fail_count++;
     ClearTest();
 
-    if (test_failures >= MAX_ATTEMPTS) {
+    if (test_fail_count >= max_fail_count) {
       return;
     }
   }
@@ -404,9 +429,9 @@ void RunTest() {
 
 // Clear testing variables
 void ClearTest() {
-  buttons_cur = buttons;
+  prev_buttons = buttons;
   skip_count = 0;
-  trigger_set = 0;
+  trigger_state = 0;
 }
 
 
@@ -419,7 +444,7 @@ void UpdateActiveDeviceInfo() {
 #ifdef DEBUG_OUTPUT
         Serial.printf("*** Device %s - disconnected ***\n", driver_names[i]);
 #endif
-        currentDevice = {};
+        current_device = {};
         driver_active[i] = false;
       }
       else {
@@ -429,12 +454,12 @@ void UpdateActiveDeviceInfo() {
         Serial.printf("Product: %s\n", drivers[i]->product());
         Serial.printf("Serial: %s\n", drivers[i]->serialNumber());
 #endif
-        currentDevice.name = driver_names[i];
-        currentDevice.manuf = drivers[i]->manufacturer();
-        currentDevice.prod = drivers[i]->product();
-        currentDevice.serial = drivers[i]->serialNumber();
-        currentDevice.vid = drivers[i]->idVendor();
-        currentDevice.pid = drivers[i]->idProduct();
+        current_device.name = driver_names[i];
+        current_device.manufacturer = drivers[i]->manufacturer();
+        current_device.product = drivers[i]->product();
+        current_device.serial = drivers[i]->serialNumber();
+        current_device.vendor_id = drivers[i]->idVendor();
+        current_device.product_id = drivers[i]->idProduct();
         driver_active[i] = true;
       }
     }
@@ -446,7 +471,7 @@ void UpdateActiveDeviceInfo() {
 #ifdef DEBUG_OUTPUT
         Serial.printf("*** HID Device %s - disconnected ***\n", hid_driver_names[i]);
 #endif
-        currentDevice = {};
+        current_device = {};
         hid_driver_active[i] = false;
       }
       else {       
@@ -456,20 +481,20 @@ void UpdateActiveDeviceInfo() {
         Serial.printf("Product: %s\n", hid_drivers[i]->product());
         Serial.printf("Serial: %s\n", hid_drivers[i]->serialNumber());
 #endif
-        currentDevice.name = hid_driver_names[i];
-        currentDevice.manuf = hid_drivers[i]->manufacturer();
-        currentDevice.prod = hid_drivers[i]->product();
-        currentDevice.serial = hid_drivers[i]->serialNumber();
-        currentDevice.vid = hid_drivers[i]->idVendor();
-        currentDevice.pid = hid_drivers[i]->idProduct();
+        current_device.name = hid_driver_names[i];
+        current_device.manufacturer = hid_drivers[i]->manufacturer();
+        current_device.product = hid_drivers[i]->product();
+        current_device.serial = hid_drivers[i]->serialNumber();
+        current_device.vendor_id = hid_drivers[i]->idVendor();
+        current_device.product_id = hid_drivers[i]->idProduct();
         hid_driver_active[i] = true;
       }
     }
   }
 
-  if (currentDevice.prev_name != currentDevice.name) {
+  if (current_device.prev_name != current_device.name) {
     MainMenu();
-    currentDevice.prev_name = currentDevice.name;
+    current_device.prev_name = current_device.name;
   }
 }
 
@@ -478,8 +503,8 @@ void UpdateActiveDeviceInfo() {
 void ProcessJoystickData(unsigned long timer) {
   buttons = joystick.getButtons();
 
-  if (buttons != buttons_cur) {
-    timer -= JOYSTICK_SKEW;
+  if (buttons != prev_buttons) {
+    timer -= joystick_skew_us;
 
     DataCollector(timer);
 
@@ -500,8 +525,8 @@ void ProcessJoystickData(unsigned long timer) {
 void ProcessMouseData(unsigned long timer) {
   buttons = mouse.getButtons();
 
-  if (buttons != buttons_cur) {
-    timer -= MOUSE_SKEW;
+  if (buttons != prev_buttons) {
+    timer -= mouse_skew_us;
 
     DataCollector(timer);
 
@@ -520,8 +545,8 @@ void ProcessMouseData(unsigned long timer) {
 
 // Validate, adjust timing skew, send to collector, and then clear everything for the next test
 void ProcessKeyboardData(unsigned long timer) {
-  if (buttons != buttons_cur) {
-    timer -= KB_SKEW;
+  if (buttons != prev_buttons) {
+    timer -= keyboard_skew_us;
 
     DataCollector(timer);
 
@@ -533,26 +558,4 @@ void ProcessKeyboardData(unsigned long timer) {
     
     ClearTest();
   }
-}
-
-
-// Called whenever a new KB key is pressed
-void OnRawPress(uint8_t keycode) {
-#ifdef DEBUG_OUTPUT
-  Serial.println("KB PRESS");
-#endif
-  buttons = keycode;
-  
-  ProcessKeyboardData(eu_timer);
-}
-
-
-// Called whenever a new KB key is released
-void OnRawRelease(uint8_t keycode) {
-#ifdef DEBUG_OUTPUT
-  Serial.println("KB RELEASE");
-#endif
-  buttons = 0;
-  
-  ProcessKeyboardData(eu_timer);
 }
