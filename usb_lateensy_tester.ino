@@ -7,19 +7,25 @@
 
 //#define DEBUG_OUTPUT
 
+//=============================================================================
+// Pin Assignments
+//=============================================================================
 constexpr int led_pin = 13;
-
 // Testing pins, connected together and to target
 constexpr int test_pin = 6;
 constexpr int interrupt_pin = 9;
 
-// Adjust for skew as compared to protocol analyzer
+//=============================================================================
+// Skew Adjustments
+//=============================================================================
 constexpr int joystick_skew_us = 997;
 constexpr int mouse_skew_us = 129;
 constexpr int keyboard_skew_us = 0; // Testing data needed
 
+using milliseconds = std::chrono::milliseconds;
+
 // Randomize testing
-unsigned long random_ms = 0;
+milliseconds random_ms(0);
 constexpr int random_floor_ms = 80;
 constexpr int random_ceiling_ms = 1000;
 
@@ -32,8 +38,8 @@ constexpr int max_fail_count = 5;
 elapsedMicros timer_us = 0;
 elapsedMillis timer_ms = 0;
 
-uint32_t prev_buttons = 0;
 uint32_t buttons;
+uint32_t prev_buttons = 0;
 
 bool pin_state = 0;
 bool trigger_state = 0;
@@ -151,7 +157,7 @@ void setup() {
   
   // Used for randomizing the tests
   randomSeed(analogRead(A0)*analogRead(A1));
-  random_ms = random(random_floor_ms, random_ceiling_ms);
+  random_ms = milliseconds(random(random_floor_ms, random_ceiling_ms));
 
   // Setup the various interrupt handlers
   keyboard.attachRawPress(OnRawPress);
@@ -375,7 +381,7 @@ void DataCollector(unsigned long timer) {
 
 // Execute the test by triggering the test_pin, and then waiting for data on joystick or mouse
 void RunTest() {
-  if (timer_ms >= random_ms && !trigger_state) {
+  if (timer_ms >= random_ms.count() && !trigger_state) {
     pin_state = !pin_state;
 #ifdef DEBUG_OUTPUT
     Serial.println("");
@@ -400,7 +406,7 @@ void RunTest() {
     trigger_state = 1;
     digitalWriteFast(led_pin, !pin_state);
 
-    random_ms = random(random_floor_ms, random_ceiling_ms);
+    random_ms = milliseconds(random(random_floor_ms, random_ceiling_ms));
     timer_ms = 0;
     
     digitalWriteFast(test_pin, pin_state);
