@@ -44,6 +44,7 @@ uint32_t prev_buttons = 0;
 bool pin_state = 0;
 bool trigger_state = 0;
 uint32_t skip_count = 0;
+milliseconds bad_result(100000);
 
 struct DeviceInfo {
   const char* name = nullptr;
@@ -320,7 +321,7 @@ void PrintDebug(unsigned long timer) {
 
 // Collect and store the information from the current test
 void DataCollector(unsigned long timer) {
-  if (timer > 100000) {
+  if (timer > bad_result.count()) {
 #ifdef DEBUG_OUTPUT
     Serial.println("BAD RESULT");
     Serial.println(timer);
