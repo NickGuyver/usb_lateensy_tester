@@ -71,18 +71,18 @@ LatencyTest current_test;
 //=============================================================================
 // USB Host Objects
 //=============================================================================
-USBHost myusb;
-JoystickController joystick(myusb);
-KeyboardController keyboard(myusb);
-MouseController mouse(myusb);
-RawHIDController rawhid(myusb);
-USBHIDParser hid1(myusb);
-USBHIDParser hid2(myusb);
-USBHIDParser hid3(myusb);
-USBHIDParser hid4(myusb);
-USBHIDParser hid5(myusb);
-USBHIDParser hid6(myusb);
-USBHIDParser hid7(myusb);
+USBHost usb_host;
+JoystickController joystick(usb_host);
+KeyboardController keyboard(usb_host);
+MouseController mouse(usb_host);
+RawHIDController rawhid(usb_host);
+USBHIDParser hid1(usb_host);
+USBHIDParser hid2(usb_host);
+USBHIDParser hid3(usb_host);
+USBHIDParser hid4(usb_host);
+USBHIDParser hid5(usb_host);
+USBHIDParser hid6(usb_host);
+USBHIDParser hid7(usb_host);
 
 // Include the most top level type devices to show information for
 std::array<USBDriver*, 8> drivers = {&joystick, &hid1, &hid2, &hid3, &hid4, &hid5, &hid6, &hid7};
@@ -146,7 +146,7 @@ void setup() {
       ;
   }
 
-  myusb.begin();
+  usb_host.begin();
   
   // Force next keyboard that attaches into boot protocol mode
   //keyboard.forceBootProtocol();
@@ -165,7 +165,7 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(interrupt_pin), StartTimer, CHANGE);
 
   // Collect current device info and diplay the menu
-  myusb.Task();
+  usb_host.Task();
   delay(500);
   UpdateActiveDeviceInfo();
 }
@@ -175,7 +175,7 @@ void setup() {
 // Main Loop
 //=============================================================================
 void loop() {
-  myusb.Task();
+  usb_host.Task();
   
   current_test = {};
   int current_progress = 0;
