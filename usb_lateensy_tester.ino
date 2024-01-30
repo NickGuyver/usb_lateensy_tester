@@ -87,7 +87,7 @@ USBHIDParser hid7(usb_host);
 
 // Include the most top level type devices to show information for
 std::array<USBDriver*, 8> drivers = {&joystick, &hid1, &hid2, &hid3, &hid4, &hid5, &hid6, &hid7};
-std::array<const char*, drivers.size()> driver_names = {"Joystick (Device), HID1, HID2, HID3, HID4, HID5, HID6, HID7"};
+std::array<const char*, drivers.size()> driver_names = {"Joystick (Device)", "HID1", "HID2", "HID3", "HID4", "HID5", "HID6", "HID7"};
 std::array<bool, drivers.size()> driver_active = {false, false, false, false, false, false, false, false};
 
 // Include HID input devices
@@ -464,7 +464,9 @@ void ProcessJoystickData(unsigned long timer) {
   buttons = joystick.getButtons();
 
   if (buttons != prev_buttons) {
-    timer -= joystick_skew_us;
+    if (timer >= joystick_skew_us) {
+      timer -= joystick_skew_us;
+    }
 
     DataCollector(timer);
 
@@ -484,7 +486,9 @@ void ProcessMouseData(unsigned long timer) {
   buttons = mouse.getButtons();
 
   if (buttons != prev_buttons) {
-    timer -= mouse_skew_us;
+    if (timer >= mouse_skew_us) {
+      timer -= mouse_skew_us;
+    }
 
     DataCollector(timer);
 
