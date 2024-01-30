@@ -204,17 +204,14 @@ void loop() {
     }
 
     if (current_test.test_count) {
-      Serial.print("\nRunning ");
-      Serial.print(current_test.test_count);
-      Serial.println(" tests...\n");
+      Serial.printf("\nRunning %lu tests...\n", current_test.test_count);
     }
 
     while (current_test.press_count < current_test.test_count) {
       RunTest();
 
       if (test_fail_count >= max_fail_count) {
-        Serial.println("\nToo many failed attempts.");
-        Serial.println();
+        Serial.printf("\nToo many failed attempts.\n");
         MainMenu();
 
         test_fail_count = 0;
@@ -223,9 +220,7 @@ void loop() {
 
       current_progress = (current_test.press_count * 100) / current_test.test_count;
       if (current_progress % 10 == 0 && last_progress != current_progress) {
-        Serial.print("\t");
-        Serial.print(current_progress);
-        Serial.println("% complete");
+        Serial.printf("\t%d%% complete\n", current_progress);
         Serial.send_now();
 
         last_progress = current_progress;
@@ -271,30 +266,14 @@ void MainMenu() {
 
 // Show the results of the last run test
 void PrintResults() {
-  Serial.print("press_count: ");
-  Serial.print(current_test.press_count);
-  Serial.println("");
-  Serial.print("press_total: ");
-  Serial.print(current_test.press_total);
-  Serial.println("");
-  Serial.print("press_avg: ");
-  Serial.print(current_test.press_total / current_test.press_count);
-  Serial.println("");
-  Serial.print("release_count: ");
-  Serial.print(current_test.release_count);
-  Serial.println("");
-  Serial.print("release_total: ");
-  Serial.print(current_test.release_total);
-  Serial.println("");
-  Serial.print("release_avg: ");
-  Serial.print(current_test.release_total / current_test.release_count);
-  Serial.println("");
-  Serial.print("trigger_count: ");
-  Serial.print(current_test.press_count + current_test.release_count);
-  Serial.println("");
-  Serial.print("trigger_total: ");
-  Serial.print(current_test.press_total + current_test.release_total);
-  Serial.println("");
+  Serial.printf("press_count: %lu\n", current_test.press_count);
+  Serial.printf("press_total: %lu\n", current_test.press_total);
+  Serial.printf("press_avg: %lu\n", (current_test.press_total / current_test.press_count));
+  Serial.printf("release_count: %lu\n", current_test.release_count);
+  Serial.printf("release_total: %lu\n", current_test.release_total);
+  Serial.printf("release_avg: %lu\n", (current_test.release_total / current_test.release_count));
+  Serial.printf("trigger_count: %lu\n", (current_test.press_count + current_test.release_count));
+  Serial.printf("trigger_total: %lu\n", (current_test.press_total + current_test.release_total));
   Serial.print("trigger_avg: ");
   Serial.print(((current_test.press_total / current_test.press_count) + 
                 (current_test.release_total / current_test.release_count)) / 2);
@@ -321,33 +300,19 @@ void PrintResults() {
 // Show debug output for each iteration of the test
 #ifdef DEBUG_OUTPUT
 void PrintDebug(unsigned long timer) {
-  Serial.print("timer_us: ");
-  Serial.print(timer);
-  Serial.println("");
+  Serial.printf("timer_us: %lu\n", timer);
   
   if (buttons) {
     Serial.println("PRESS");
-    Serial.print("press_count: ");
-    Serial.print(current_test.press_count);
-    Serial.println("");
-    Serial.print("press_total: ");
-    Serial.print(current_test.press_total);
-    Serial.println("");
-    Serial.print("press_avg: ");
-    Serial.print(current_test.press_total / current_test.press_count);
-    Serial.println("");
+    Serial.printf("press_count: %lu\n", current_test.press_count);
+    Serial.printf("press_total: %lu\n", current_test.press_total);
+    Serial.printf("press_avg: %lu\n", (current_test.press_total / current_test.press_count));
   }
   else {
     Serial.println("RELEASE");
-    Serial.print("release_count: ");
-    Serial.print(current_test.release_count);
-    Serial.println("");
-    Serial.print("release_total: ");
-    Serial.print(current_test.release_total);
-    Serial.println("");
-    Serial.print("release_avg: ");
-    Serial.print(current_test.release_total / current_test.release_count);
-    Serial.println("");
+    Serial.printf("release_count: %lu\n", current_test.release_count);
+    Serial.printf("release_total: %lu\n", current_test.release_total);
+    Serial.printf("release_avg: %lu\n", (current_test.release_total / current_test.release_count));
   }
 }
 #endif
@@ -384,23 +349,11 @@ void RunTest() {
   if ((timer_ms >= random_ms.count()) && !trigger_state) {
     pin_state = !pin_state;
 #ifdef DEBUG_OUTPUT
-    Serial.println("");
-    Serial.println("");
-    Serial.print("timer_ms: ");
-    Serial.print(timer_ms);
-    Serial.println("");
-    Serial.print("pin_state: ");
-    Serial.print(pin_state);
-    Serial.println("");
-    Serial.print("current_device: ");
-    Serial.print(current_device.name);
-    Serial.println("");
-    Serial.print("skip_count: ");
-    Serial.print(skip_count);
-    Serial.println("");
-    Serial.print("test_fail_count: ");
-    Serial.print(test_fail_count);
-    Serial.println("");
+    Serial.printf("\n\nrandom_ms: %lu\n", random_ms);
+    Serial.printf("pin_state: %d\n", pin_state);
+    Serial.printf("current_device: %s\n", current_device.name);
+    Serial.printf("skip_count: %lu\n", skip_count);
+    Serial.printf("test_fail_count: %u\n", test_fail_count);
     Serial.send_now();
 #endif
     trigger_state = 1;
@@ -515,9 +468,7 @@ void ProcessJoystickData(unsigned long timer) {
     DataCollector(timer);
 
 #ifdef DEBUG_OUTPUT
-    Serial.print("Joystick: buttons = ");
-    Serial.print(buttons, HEX);
-    Serial.println();
+    Serial.printf("Joystick: buttons = %lu\n", buttons);
 #endif
 
     ClearTest();
@@ -537,9 +488,7 @@ void ProcessMouseData(unsigned long timer) {
     DataCollector(timer);
 
 #ifdef DEBUG_OUTPUT
-    Serial.print("Mouse: buttons = ");
-    Serial.print(buttons, HEX);
-    Serial.println();
+    Serial.printf("Mouse: buttons = %lu\n", buttons);
 #endif
 
     ClearTest();
@@ -557,9 +506,7 @@ void ProcessKeyboardData(unsigned long timer) {
     DataCollector(timer);
 
 #ifdef DEBUG_OUTPUT
-    Serial.print("Keyboard: buttons = ");
-    Serial.print(buttons, HEX);
-    Serial.println();
+    Serial.printf("Keyboard: buttons = %lu\n", buttons);
 #endif
     
     ClearTest();
