@@ -371,7 +371,7 @@ void RunTest() {
   else if (mouse.available()) {
     ProcessMouseData(timer_us);
   }
-  else if (timer_ms > max_fail_time_ms) {
+  if (timer_ms > max_fail_time_ms) {
 #ifdef DEBUG_OUTPUT
     Serial.println("TIMER FAIL");
 #endif
