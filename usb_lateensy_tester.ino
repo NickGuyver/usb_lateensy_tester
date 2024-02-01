@@ -18,8 +18,8 @@ constexpr int interrupt_pin = 9;
 //=============================================================================
 // Skew Adjustments
 //=============================================================================
-constexpr int joystick_skew_us = 997;
-constexpr int mouse_skew_us = 129;
+constexpr int joystick_skew_us = 0;//997;
+constexpr int mouse_skew_us = 0;//129;
 constexpr int keyboard_skew_us = 0; // Testing data needed
 
 using milliseconds = std::chrono::milliseconds;
@@ -265,6 +265,126 @@ void MainMenu() {
 }
 
 
+// Execute the test by triggering the test_pin, and then waiting for data on joystick or mouse
+void RunTest() {
+  if ((timer_ms >= random_ms.count()) && !trigger_state) {
+    pin_state = !pin_state;
+#ifdef DEBUG_OUTPUT
+    Serial.printf("\n\nrandom_ms: %lu\n", random_ms);
+    Serial.printf("pin_state: %d\n", pin_state);
+    Serial.printf("current_device: %s\n", current_device.name);
+    Serial.printf("skip_count: %lu\n", skip_count);
+    Serial.printf("test_fail_count: %u\n", test_fail_count);
+    Serial.send_now();
+#endif
+    trigger_state = 1;
+    digitalWriteFast(led_pin, !pin_state);
+
+    random_ms = milliseconds(random(random_floor_ms, random_ceiling_ms));
+    timer_ms = 0;
+    
+    digitalWriteFast(test_pin, pin_state);
+  }
+  else if (joystick.available()) {
+    ProcessJoystickData(timer_us);
+  }
+  else if (mouse.available()) {
+    ProcessMouseData(timer_us);
+  }
+  if (timer_ms > max_fail_time_ms) {
+#ifdef DEBUG_OUTPUT
+    Serial.println("TIMER FAIL");
+#endif
+    test_fail_count++;
+    ClearTest();
+
+    if (test_fail_count >= max_fail_count) {
+      return;
+    }
+  }
+
+  skip_count ++;
+}
+
+
+// Validate, adjust timing skew, send to collector, and then clear everything for the next test
+void ProcessJoystickData(unsigned long timer) {
+  buttons = joystick.getButtons();
+
+  if (buttons != prev_buttons) {
+    if (timer >= joystick_skew_us) {
+      timer -= joystick_skew_us;
+    }
+
+    DataCollector(timer);
+
+#ifdef DEBUG_OUTPUT
+    Serial.printf("Joystick: buttons = %lu\n", buttons);
+#endif
+
+    ClearTest();
+
+    joystick.joystickDataClear();
+  }
+}
+
+
+// Validate, adjust timing skew, send to collector, and then clear everything for the next test
+void ProcessMouseData(unsigned long timer) {
+  buttons = mouse.getButtons();
+
+  if (buttons != prev_buttons) {
+    if (timer >= mouse_skew_us) {
+      timer -= mouse_skew_us;
+    }
+
+    DataCollector(timer);
+
+#ifdef DEBUG_OUTPUT
+    Serial.printf("Mouse: buttons = %lu\n", buttons);
+#endif
+
+    ClearTest();
+
+    mouse.mouseDataClear();
+  }
+}
+
+
+// Collect and store the information from the current test
+void DataCollector(unsigned long timer) {
+  if (timer > bad_result.count()) {
+#ifdef DEBUG_OUTPUT
+    Serial.println("BAD RESULT");
+    Serial.println(timer);
+#endif
+  }
+  else {
+#ifdef DEBUG_OUTPUT
+      PrintDebug(timer);
+#endif
+    if (buttons) {
+      current_test.presses.push_back(timer);
+      current_test.press_count ++;
+      current_test.press_total += timer;
+    }
+    else {
+      current_test.releases.push_back(timer);
+      current_test.release_count ++;
+      current_test.release_total += timer;
+    }
+  }
+}
+
+
+// Clear testing variables
+void ClearTest() {
+  prev_buttons = buttons;
+  skip_count = 0;
+  trigger_state = 0;
+}
+
+
 // Show the results of the last run test
 void PrintResults() {
   Serial.printf("press_count: %lu\n", current_test.press_count);
@@ -317,82 +437,6 @@ void PrintDebug(unsigned long timer) {
   }
 }
 #endif
-
-
-// Collect and store the information from the current test
-void DataCollector(unsigned long timer) {
-  if (timer > bad_result.count()) {
-#ifdef DEBUG_OUTPUT
-    Serial.println("BAD RESULT");
-    Serial.println(timer);
-#endif
-  }
-  else {
-#ifdef DEBUG_OUTPUT
-      PrintDebug(timer);
-#endif
-    if (buttons) {
-      current_test.presses.push_back(timer);
-      current_test.press_count ++;
-      current_test.press_total += timer;
-    }
-    else {
-      current_test.releases.push_back(timer);
-      current_test.release_count ++;
-      current_test.release_total += timer;
-    }
-  }
-}
-
-
-// Execute the test by triggering the test_pin, and then waiting for data on joystick or mouse
-void RunTest() {
-  if ((timer_ms >= random_ms.count()) && !trigger_state) {
-    pin_state = !pin_state;
-#ifdef DEBUG_OUTPUT
-    Serial.printf("\n\nrandom_ms: %lu\n", random_ms);
-    Serial.printf("pin_state: %d\n", pin_state);
-    Serial.printf("current_device: %s\n", current_device.name);
-    Serial.printf("skip_count: %lu\n", skip_count);
-    Serial.printf("test_fail_count: %u\n", test_fail_count);
-    Serial.send_now();
-#endif
-    trigger_state = 1;
-    digitalWriteFast(led_pin, !pin_state);
-
-    random_ms = milliseconds(random(random_floor_ms, random_ceiling_ms));
-    timer_ms = 0;
-    
-    digitalWriteFast(test_pin, pin_state);
-  }
-  else if (joystick.available()) {
-    ProcessJoystickData(timer_us);
-  }
-  else if (mouse.available()) {
-    ProcessMouseData(timer_us);
-  }
-  if (timer_ms > max_fail_time_ms) {
-#ifdef DEBUG_OUTPUT
-    Serial.println("TIMER FAIL");
-#endif
-    test_fail_count++;
-    ClearTest();
-
-    if (test_fail_count >= max_fail_count) {
-      return;
-    }
-  }
-
-  skip_count ++;
-}
-
-
-// Clear testing variables
-void ClearTest() {
-  prev_buttons = buttons;
-  skip_count = 0;
-  trigger_state = 0;
-}
 
 
 // Gather the current device information
@@ -455,50 +499,6 @@ void UpdateActiveDeviceInfo() {
   if (current_device.prev_name != current_device.name) {
     MainMenu();
     current_device.prev_name = current_device.name;
-  }
-}
-
-
-// Validate, adjust timing skew, send to collector, and then clear everything for the next test
-void ProcessJoystickData(unsigned long timer) {
-  buttons = joystick.getButtons();
-
-  if (buttons != prev_buttons) {
-    if (timer >= joystick_skew_us) {
-      timer -= joystick_skew_us;
-    }
-
-    DataCollector(timer);
-
-#ifdef DEBUG_OUTPUT
-    Serial.printf("Joystick: buttons = %lu\n", buttons);
-#endif
-
-    ClearTest();
-
-    joystick.joystickDataClear();
-  }
-}
-
-
-// Validate, adjust timing skew, send to collector, and then clear everything for the next test
-void ProcessMouseData(unsigned long timer) {
-  buttons = mouse.getButtons();
-
-  if (buttons != prev_buttons) {
-    if (timer >= mouse_skew_us) {
-      timer -= mouse_skew_us;
-    }
-
-    DataCollector(timer);
-
-#ifdef DEBUG_OUTPUT
-    Serial.printf("Mouse: buttons = %lu\n", buttons);
-#endif
-
-    ClearTest();
-
-    mouse.mouseDataClear();
   }
 }
 
