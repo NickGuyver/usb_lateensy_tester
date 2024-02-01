@@ -184,6 +184,7 @@ void loop() {
   current_test = {};
   
   UpdateActiveDeviceInfo();
+  
   while (Serial.available()) {
     GetMenuChoice();
 
@@ -231,6 +232,7 @@ void MainMenu() {
   Serial.println("\t5 - Flip Testing Pin");
 
   digitalWriteFast(led_pin, pin_state);
+  digitalWriteFast(test_pin, pin_state);
 }
 
 
