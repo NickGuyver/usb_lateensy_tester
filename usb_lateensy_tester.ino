@@ -257,7 +257,7 @@ void GetMenuChoice() {
 }
 
 
-// Execute the test by triggering the test_pin, and then waiting for data on joystick or mouse
+// Execute the test by triggering the test_pin
 void StartTest() {
   pin_state = !pin_state;
 #ifdef DEBUG_OUTPUT
