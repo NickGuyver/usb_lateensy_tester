@@ -46,9 +46,6 @@ bool trigger_state = 0;
 uint32_t skip_count = 0;
 milliseconds bad_result(100000);
 
-int current_progress = 0;
-int last_progress = 0;
-
 struct DeviceInfo {
   const char* name = nullptr;
   const char* prev_name = "None";
@@ -67,6 +64,8 @@ struct LatencyTest {
   uint32_t release_total = 0;
   std::vector<long unsigned int> presses = {};
   std::vector<long unsigned int>  releases = {};
+  int current_progress = 0;
+  int last_progress = 0;
 };
 
 DeviceInfo current_device;
@@ -184,7 +183,7 @@ void loop() {
   current_test = {};
   
   UpdateActiveDeviceInfo();
-  
+
   while (Serial.available()) {
     GetMenuChoice();
 
@@ -315,13 +314,13 @@ void TestFailureCheck() {
 
 // Show the current testing progress in 10% increments
 void PrintProgress() {
-  current_progress = (current_test.press_count * 100) / current_test.test_count;
+  current_test.current_progress = (current_test.press_count * 100) / current_test.test_count;
   
-  if (current_progress % 10 == 0 && last_progress != current_progress) {
-    Serial.printf("\t%d%% complete\n", current_progress);
+  if (current_test.current_progress % 10 == 0 && current_test.last_progress != current_test.current_progress) {
+    Serial.printf("\t%d%% complete\n", current_test.current_progress);
     Serial.send_now();
 
-    last_progress = current_progress;
+    current_test.last_progress = current_test.current_progress;
   }
 }
 
