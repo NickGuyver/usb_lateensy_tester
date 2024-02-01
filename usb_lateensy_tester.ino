@@ -5,7 +5,7 @@
 
 #include "USBHost_t36.h"
 
-//#define DEBUG_OUTPUT
+#define DEBUG_OUTPUT
 
 //=============================================================================
 // Pin Assignments
@@ -45,6 +45,9 @@ bool pin_state = 0;
 bool trigger_state = 0;
 uint32_t skip_count = 0;
 milliseconds bad_result(100000);
+
+int current_progress = 0;
+int last_progress = 0;
 
 struct DeviceInfo {
   const char* name = nullptr;
@@ -179,61 +182,27 @@ void loop() {
   usb_host.Task();
   
   current_test = {};
-  int current_progress = 0;
-  int last_progress = 0;
-
+  
   UpdateActiveDeviceInfo();
-
   while (Serial.available()) {
-    switch (Serial.read()) {
-      case '1':
-        current_test.test_count = 10;
-        break;
-      case '2':
-        current_test.test_count = 50;
-        break;
-      case '3':
-        current_test.test_count = 100;
-        break;
-      case '4':
-        current_test.test_count = 1000;
-        break;
-      case '5':
-        pin_state = !pin_state;
-        MainMenu();
-        break;
-    }
+    GetMenuChoice();
 
     if (current_test.test_count) {
       Serial.printf("\nRunning %lu tests...\n", current_test.test_count);
     }
 
     while (current_test.press_count < current_test.test_count) {
-      RunTest();
-
-      if (test_fail_count >= max_fail_count) {
-        Serial.printf("\nToo many failed attempts.\n");
-        MainMenu();
-
-        test_fail_count = 0;
-        current_test.test_count = 0;
+      if ((timer_ms >= random_ms.count()) && !trigger_state) {
+        StartTest();
       }
 
-      current_progress = (current_test.press_count * 100) / current_test.test_count;
-      if (current_progress % 10 == 0 && last_progress != current_progress) {
-        Serial.printf("\t%d%% complete\n", current_progress);
-        Serial.send_now();
-
-        last_progress = current_progress;
-      }
+      CheckUSB();
+      TestFailureCheck();
+      PrintProgress();
     }
-    if (current_test.test_count) {
-      Serial.println("done\n");
-      PrintResults();
-      Serial.println();
-      MainMenu();
 
-      current_test.test_count = 0;
+    if (current_test.test_count) {
+      PrintResults();
     }
   }
 }
@@ -265,32 +234,65 @@ void MainMenu() {
 }
 
 
-// Execute the test by triggering the test_pin, and then waiting for data on joystick or mouse
-void RunTest() {
-  if ((timer_ms >= random_ms.count()) && !trigger_state) {
-    pin_state = !pin_state;
-#ifdef DEBUG_OUTPUT
-    Serial.printf("\n\nrandom_ms: %lu\n", random_ms);
-    Serial.printf("pin_state: %d\n", pin_state);
-    Serial.printf("current_device: %s\n", current_device.name);
-    Serial.printf("skip_count: %lu\n", skip_count);
-    Serial.printf("test_fail_count: %u\n", test_fail_count);
-    Serial.send_now();
-#endif
-    trigger_state = 1;
-    digitalWriteFast(led_pin, !pin_state);
-
-    random_ms = milliseconds(random(random_floor_ms, random_ceiling_ms));
-    timer_ms = 0;
-    
-    digitalWriteFast(test_pin, pin_state);
+// Get the number of tests to run and allow flipping the test_pin
+void GetMenuChoice() {
+  switch (Serial.read()) {
+    case '1':
+      current_test.test_count = 10;
+      break;
+    case '2':
+      current_test.test_count = 50;
+      break;
+    case '3':
+      current_test.test_count = 100;
+      break;
+    case '4':
+      current_test.test_count = 1000;
+      break;
+    case '5':
+      pin_state = !pin_state;
+      MainMenu();
+      break;
   }
-  else if (joystick.available()) {
+}
+
+
+// Execute the test by triggering the test_pin, and then waiting for data on joystick or mouse
+void StartTest() {
+  pin_state = !pin_state;
+#ifdef DEBUG_OUTPUT
+  Serial.printf("\n\nrandom_ms: %lu\n", random_ms);
+  Serial.printf("pin_state: %d\n", pin_state);
+  Serial.printf("current_device: %s\n", current_device.name);
+  Serial.printf("skip_count: %lu\n", skip_count);
+  Serial.printf("test_fail_count: %u\n", test_fail_count);
+  Serial.send_now();
+#endif
+  trigger_state = 1;
+  digitalWriteFast(led_pin, !pin_state);
+
+  random_ms = milliseconds(random(random_floor_ms, random_ceiling_ms));
+  timer_ms = 0;
+  
+  digitalWriteFast(test_pin, pin_state);
+}
+
+
+// Check for state changes on USB, then send the time
+void CheckUSB() {
+  if (joystick.available()) {
     ProcessJoystickData(timer_us);
   }
-  else if (mouse.available()) {
+  if (mouse.available()) {
     ProcessMouseData(timer_us);
   }
+  
+  skip_count ++;
+}
+
+
+// Check for and keep track of testing failures due to timeouts
+void TestFailureCheck() {
   if (timer_ms > max_fail_time_ms) {
 #ifdef DEBUG_OUTPUT
     Serial.println("TIMER FAIL");
@@ -299,11 +301,26 @@ void RunTest() {
     ClearTest();
 
     if (test_fail_count >= max_fail_count) {
-      return;
+      Serial.printf("\nToo many failed attempts.\n");
+      MainMenu();
+
+      test_fail_count = 0;
+      current_test.test_count = 0;
     }
   }
+}
 
-  skip_count ++;
+
+// Show the current testing progress in 10% increments
+void PrintProgress() {
+  current_progress = (current_test.press_count * 100) / current_test.test_count;
+  
+  if (current_progress % 10 == 0 && last_progress != current_progress) {
+    Serial.printf("\t%d%% complete\n", current_progress);
+    Serial.send_now();
+
+    last_progress = current_progress;
+  }
 }
 
 
@@ -387,6 +404,8 @@ void ClearTest() {
 
 // Show the results of the last run test
 void PrintResults() {
+  Serial.println("done\n");
+
   Serial.printf("press_count: %lu\n", current_test.press_count);
   Serial.printf("press_total: %lu\n", current_test.press_total);
   Serial.printf("press_avg: %lu\n", (current_test.press_total / current_test.press_count));
@@ -415,6 +434,10 @@ void PrintResults() {
     Serial.println("");
   }
 #endif
+  Serial.println();
+  MainMenu();
+
+  current_test.test_count = 0;
 }
 
 
