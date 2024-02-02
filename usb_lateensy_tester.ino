@@ -183,27 +183,25 @@ void loop() {
   current_test = {};
   
   UpdateActiveDeviceInfo();
+  GetMenuChoice();
 
-  while (Serial.available()) {
-    GetMenuChoice();
+  if (current_test.test_count) {
+    Serial.printf("\nRunning %lu tests...\n", current_test.test_count);
+  }
 
-    if (current_test.test_count) {
-      Serial.printf("\nRunning %lu tests...\n", current_test.test_count);
+  while (current_test.press_count < current_test.test_count) {
+    if ((timer_ms >= random_ms.count()) && !trigger_state) {
+      StartTest();
     }
-
-    while (current_test.press_count < current_test.test_count) {
-      if ((timer_ms >= random_ms.count()) && !trigger_state) {
-        StartTest();
-      }
-
+    else {
       CheckUSB();
       TestFailureCheck();
       PrintProgress();
     }
+  }
 
-    if (current_test.test_count) {
-      PrintResults();
-    }
+  if (current_test.test_count) {
+    PrintResults();
   }
 }
 
