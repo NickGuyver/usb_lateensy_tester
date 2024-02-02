@@ -198,7 +198,6 @@ void loop() {
   UpdateActiveDeviceInfo();
   GetMenuChoice();
   
-
   if (current_test.test_count) {
     Serial.printf("\nRunning %lu tests...\n", current_test.test_count);
   }
