@@ -1,6 +1,7 @@
 #include <array>
 #include <chrono>
 #include <cstdint>
+#include <TeensyThreads.h>
 #include <vector>
 
 #include "USBHost_t36.h"
@@ -98,12 +99,6 @@ std::array<const char*, hid_drivers.size()> hid_driver_names = {"Joystick", "Key
 std::array<bool, hid_drivers.size()> hid_driver_active = {false, false, false, false};
 
 
-void yield()
-{
-  digitalToggleFast(0);
-}
-
-
 //=============================================================================
 // Interrupt Functions
 //=============================================================================
@@ -130,6 +125,20 @@ void OnRawRelease(uint8_t keycode) {
   buttons = 0;
   
   ProcessKeyboardData(timer_us);
+}
+
+
+//=============================================================================
+// Thread Functions
+//=============================================================================
+volatile uint32_t end_timer_us = 0;
+
+void StopTimer() {
+  while (1) {
+    if (joystick.available() || mouse.available()) {
+      end_timer_us = timer_us;
+    }
+  }
 }
 
 
@@ -162,6 +171,10 @@ void setup() {
   randomSeed(analogRead(A0)*analogRead(A1));
   random_ms = milliseconds(random(random_floor_ms, random_ceiling_ms));
 
+  // Setup for threading
+  threads.setSliceMicros(1);
+  threads.addThread(StopTimer);
+
   // Setup the various interrupt handlers
   keyboard.attachRawPress(OnRawPress);
   keyboard.attachRawRelease(OnRawRelease);
@@ -183,27 +196,26 @@ void loop() {
   current_test = {};
   
   UpdateActiveDeviceInfo();
+  GetMenuChoice();
+  
 
-  while (Serial.available()) {
-    GetMenuChoice();
+  if (current_test.test_count) {
+    Serial.printf("\nRunning %lu tests...\n", current_test.test_count);
+  }
 
-    if (current_test.test_count) {
-      Serial.printf("\nRunning %lu tests...\n", current_test.test_count);
+  while (current_test.press_count < current_test.test_count) {
+    if ((timer_ms >= random_ms.count()) && !trigger_state) {
+      StartTest();
     }
-
-    while (current_test.press_count < current_test.test_count) {
-      if ((timer_ms >= random_ms.count()) && !trigger_state) {
-        StartTest();
-      }
-
+    else {
       CheckUSB();
       TestFailureCheck();
       PrintProgress();
     }
+  }
 
-    if (current_test.test_count) {
-      PrintResults();
-    }
+  if (current_test.test_count) {
+    PrintResults();
   }
 }
 
@@ -328,7 +340,9 @@ void PrintProgress() {
 // Validate, adjust timing skew, send to collector, and then clear everything for the next test
 void ProcessJoystickData(unsigned long timer) {
   buttons = joystick.getButtons();
-
+#ifdef DEBUG_OUTPUT
+  Serial.printf("end_timer_us = %lu\n", end_timer_us);
+#endif
   if (buttons != prev_buttons) {
     if (timer >= joystick_skew_us) {
       timer -= joystick_skew_us;
@@ -350,7 +364,9 @@ void ProcessJoystickData(unsigned long timer) {
 // Validate, adjust timing skew, send to collector, and then clear everything for the next test
 void ProcessMouseData(unsigned long timer) {
   buttons = mouse.getButtons();
-
+#ifdef DEBUG_OUTPUT
+  Serial.printf("end_timer_us = %lu\n", end_timer_us);
+#endif
   if (buttons != prev_buttons) {
     if (timer >= mouse_skew_us) {
       timer -= mouse_skew_us;
