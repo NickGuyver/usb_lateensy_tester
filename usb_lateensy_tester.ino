@@ -138,6 +138,7 @@ void StopTimer() {
     if (joystick.available() || mouse.available()) {
       end_timer_us = timer_us;
     }
+    threads.yield();
   }
 }
 
@@ -172,8 +173,12 @@ void setup() {
   random_ms = milliseconds(random(random_floor_ms, random_ceiling_ms));
 
   // Setup for threading
-  threads.setSliceMicros(1);
+  //threads.setSliceMicros(1);
   threads.addThread(StopTimer);
+  // loop() is id 0
+  threads.setTimeSlice(0, 1);
+  // StopTimer() is id 1
+  threads.setTimeSlice(1, 1);
 
   // Setup the various interrupt handlers
   keyboard.attachRawPress(OnRawPress);
@@ -207,6 +212,7 @@ void loop() {
       StartTest();
     }
     else {
+      threads.yield();
       CheckUSB();
       TestFailureCheck();
       PrintProgress();
