@@ -268,7 +268,7 @@ void StartTest() {
   Serial.send_now();
 #endif
   trigger_state = 1;
-  digitalWriteFast(led_pin, !pin_state);
+  digitalWriteFast(led_pin, pin_state);
 
   random_ms = milliseconds(random(random_floor_ms, random_ceiling_ms));
   timer_ms = 0;
