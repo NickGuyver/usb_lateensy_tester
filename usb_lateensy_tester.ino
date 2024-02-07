@@ -98,12 +98,6 @@ std::array<const char*, hid_drivers.size()> hid_driver_names = {"Joystick", "Key
 std::array<bool, hid_drivers.size()> hid_driver_active = {false, false, false, false};
 
 
-void yield()
-{
-  digitalToggleFast(0);
-}
-
-
 //=============================================================================
 // Interrupt Functions
 //=============================================================================
